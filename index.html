@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobia - Motor de Recomendacao Inteligente</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    colors: {
+                        dark: { 900: '#0a0e17', 800: '#0f1419', 700: '#151b24', 600: '#1a222d', 500: '#242d3a' },
+                        neon: { blue: '#00d4ff', green: '#00ff88', purple: '#a855f7', pink: '#ff0080', yellow: '#ffd700' },
+                        glass: { light: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #0a0e17; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Glow effects */
+        .glow-blue { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3), 0 0 40px rgba(0, 212, 255, 0.1); }
+        .glow-green { box-shadow: 0 0 20px rgba(0, 255, 136, 0.3), 0 0 40px rgba(0, 255, 136, 0.1); }
+        .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1); }
+        .text-glow-blue { text-shadow: 0 0 10px rgba(0, 212, 255, 0.5); }
+        .text-glow-green { text-shadow: 0 0 10px rgba(0, 255, 136, 0.5); }
+
+        /* Glass morphism */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .glass-card-hover:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+
+        /* Gradient borders */
+        .gradient-border {
+            position: relative;
+            background: #0f1419;
+        }
+        .gradient-border::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            padding: 1px;
+            border-radius: inherit;
+            background: linear-gradient(135deg, #00d4ff, #a855f7, #00ff88);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+        }
+
+        /* Terminal window */
+        .terminal {
+            background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .terminal-header {
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .terminal-dot-red { background: #ff5f56; }
+        .terminal-dot-yellow { background: #ffbd2e; }
+        .terminal-dot-green { background: #27ca40; }
+
+        /* Animations */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); }
+            50% { opacity: 0.7; box-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
+        }
+        @keyframes scan-line {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes progress-bar {
+            0% { width: 0%; }
+            100% { width: var(--progress); }
+        }
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+        .progress-animate { animation: progress-bar 2s ease-out forwards; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0e17; }
+        ::-webkit-scrollbar-thumb { background: #242d3a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+
+        /* Custom checkbox */
+        .custom-checkbox {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .custom-checkbox:checked {
+            background: linear-gradient(135deg, #00d4ff, #00ff88);
+            border-color: transparent;
+        }
+        .custom-checkbox:checked::after {
+            content: '✓';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0a0e17;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Range slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type="range"]::-webkit-slider-track {
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #00d4ff, #00ff88);
+            border-radius: 50%;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // =============================================================================
+        // DADOS
+        // =============================================================================
+        const ESTOQUE = [
+            { id: 1, placa: "ABC-1D23", marca: "VOLKSWAGEN", modelo: "GOL 1.0 MPI", ano: 2021, cor: "Branco", km: 45000, valor: 52000, categoria: "Hatch", combustivel: "Flex", cambio: "Manual", portas: 4, foto: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=600", dias: 12 },
+            { id: 2, placa: "DEF-5E67", marca: "CHEVROLET", modelo: "ONIX LT 1.0 TURBO", ano: 2023, cor: "Prata", km: 18000, valor: 78000, categoria: "Hatch", combustivel: "Flex", cambio: "Automatico", portas: 4, foto: "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=600", dias: 5 },
+            { id: 3, placa: "GHI-8J90", marca: "FIAT", modelo: "STRADA FREEDOM 1.3", ano: 2022, cor: "Vermelho", km: 32000, valor: 98000, categoria: "Utilitario", combustivel: "Flex", cambio: "Manual", portas: 2, foto: "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=600", dias: 28 },
+            { id: 4, placa: "JKL-1M23", marca: "TOYOTA", modelo: "COROLLA XEI 2.0", ano: 2022, cor: "Preto", km: 25000, valor: 142000, categoria: "Seda", combustivel: "Flex", cambio: "Automatico", portas: 4, foto: "https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=600", dias: 15 },
+            { id: 5, placa: "MNO-4P56", marca: "HONDA", modelo: "HR-V EXL", ano: 2023, cor: "Cinza", km: 12000, valor: 168000, categoria: "SUV", combustivel: "Flex", cambio: "CVT", portas: 4, foto: "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=600", dias: 8 },
+            { id: 6, placa: "PQR-7S89", marca: "FORD", modelo: "KA SE 1.0", ano: 2020, cor: "Azul", km: 58000, valor: 42000, categoria: "Hatch", combustivel: "Flex", cambio: "Manual", portas: 4, foto: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=600", dias: 45 },
+            { id: 7, placa: "STU-0V12", marca: "CHEVROLET", modelo: "TRACKER LT TURBO", ano: 2024, cor: "Branco", km: 5000, valor: 145000, categoria: "SUV", combustivel: "Flex", cambio: "Automatico", portas: 4, foto: "https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=600", dias: 3 },
+            { id: 8, placa: "VWX-3Y45", marca: "VOLKSWAGEN", modelo: "POLO TSI", ano: 2023, cor: "Vermelho", km: 22000, valor: 92000, categoria: "Hatch", combustivel: "Flex", cambio: "Automatico", portas: 4, foto: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=600", dias: 10 },
+            { id: 9, placa: "YZA-6B78", marca: "HYUNDAI", modelo: "HB20 VISION", ano: 2022, cor: "Prata", km: 35000, valor: 68000, categoria: "Hatch", combustivel: "Flex", cambio: "Manual", portas: 4, foto: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=600", dias: 20 },
+            { id: 10, placa: "BCD-9E01", marca: "JEEP", modelo: "RENEGADE SPORT", ano: 2021, cor: "Verde", km: 48000, valor: 115000, categoria: "SUV", combustivel: "Flex", cambio: "Automatico", portas: 4, foto: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=600", dias: 35 }
+        ];
+
+        const DADOS_HISTORICOS = {
+            totalVendas: 6576,
+            ticketMedio: 56200,
+            taxaFinanciamento: 46.5,
+            topModelos: [
+                { modelo: "GOL", vendas: 389, ticket: 43818 },
+                { modelo: "CORSA", vendas: 156, ticket: 45489 },
+                { modelo: "PALIO", vendas: 269, ticket: 51715 },
+                { modelo: "ONIX", vendas: 36, ticket: 85335 },
+                { modelo: "COROLLA", vendas: 67, ticket: 94882 }
+            ],
+            sazonalidade: { Hatch: "Dezembro", SUV: "Novembro", Seda: "Dezembro", Utilitario: "Junho" },
+            perfilGenero: { M: 65, F: 35 },
+            faixasEtarias: { "25-34": 15, "35-44": 35, "45-54": 25, "55-64": 15, "65+": 10 }
+        };
+
+        // =============================================================================
+        // MOTOR DE RECOMENDACAO
+        // =============================================================================
+        const MotorIA = {
+            analisar: (veiculo) => {
+                const etapas = [
+                    { id: 1, nome: "Iniciando varredura em dados historicos...", icone: "🌐", tempo: 800 },
+                    { id: 2, nome: "Coletando padroes de compra...", icone: "👥", tempo: 1200 },
+                    { id: 3, nome: "Analisando sazonalidade e tendencias...", icone: "📊", tempo: 1000 },
+                    { id: 4, nome: "Aplicando Inteligencia Artificial...", icone: "🤖", tempo: 1500 },
+                    { id: 5, nome: "Compilando relatorio estrategico...", icone: "📋", tempo: 800 }
+                ];
+
+                // Calculos baseados em dados reais
+                const faixaPreco = veiculo.valor > 120000 ? "Premium" : veiculo.valor > 70000 ? "Intermediario" : "Popular";
+                const sexoPrincipal = veiculo.valor > 100000 || veiculo.categoria === "SUV" ? { genero: "Feminino", pct: 55 } : { genero: "Masculino", pct: 68 };
+                const faixaEtaria = veiculo.valor > 100000 ? "45-54" : veiculo.valor > 60000 ? "35-44" : "25-34";
+                const taxaFin = veiculo.valor > 80000 ? 35 : 55;
+                const melhorMes = DADOS_HISTORICOS.sazonalidade[veiculo.categoria] || "Dezembro";
+                const urgencia = veiculo.dias > 30 ? "Alta" : veiculo.dias > 15 ? "Media" : "Baixa";
+                const scoreBase = Math.round(100 - (veiculo.dias * 1.5) + (veiculo.km < 30000 ? 20 : 0));
+
+                return {
+                    etapas,
+                    resultado: {
+                        veiculo,
+                        perfil: {
+                            sexo: sexoPrincipal,
+                            faixaEtaria,
+                            faixaPreco,
+                            renda: veiculo.valor > 100000 ? "Classe A/B" : "Classe B/C",
+                            interesses: ["Automoveis", veiculo.categoria, veiculo.marca, veiculo.combustivel === "Flex" ? "Economia" : "Performance"]
+                        },
+                        estrategia: {
+                            financiamento: taxaFin > 40,
+                            taxaFinanciamento: taxaFin,
+                            melhorMes,
+                            urgencia,
+                            canalPrincipal: veiculo.valor > 80000 ? "Instagram Ads" : "Facebook Ads",
+                            orcamentoSugerido: Math.round(veiculo.valor * 0.005)
+                        },
+                        score: Math.max(20, Math.min(100, scoreBase)),
+                        insights: [
+                            { tipo: "positivo", texto: `${sexoPrincipal.pct}% do publico-alvo e ${sexoPrincipal.genero.toLowerCase()}` },
+                            { tipo: "positivo", texto: `Melhor epoca para venda: ${melhorMes}` },
+                            { tipo: taxaFin > 40 ? "positivo" : "neutro", texto: `${taxaFin}% dos compradores usam financiamento` },
+                            { tipo: urgencia === "Alta" ? "alerta" : "neutro", texto: `Veiculo ha ${veiculo.dias} dias no estoque` },
+                            { tipo: "info", texto: `Ticket medio historico: R$ ${DADOS_HISTORICOS.ticketMedio.toLocaleString()}` }
+                        ],
+                        mensagens: {
+                            whatsapp: `Ola! Temos uma oportunidade imperdivel: ${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} com apenas ${veiculo.km.toLocaleString()}km por R$ ${veiculo.valor.toLocaleString()}! ${taxaFin > 40 ? 'Parcele em ate 60x!' : 'Melhor preco a vista!'} Interesse?`,
+                            instagram: `${veiculo.marca} ${veiculo.modelo} ${veiculo.ano} 🚗\n💰 R$ ${veiculo.valor.toLocaleString()}\n📍 ${veiculo.km.toLocaleString()}km\n✨ ${veiculo.cor}\n\n#carros #${veiculo.marca.toLowerCase()} #oportunidade #seminovos`,
+                            facebook: `🔥 OPORTUNIDADE!\n\n${veiculo.marca} ${veiculo.modelo} ${veiculo.ano}\n\n✅ ${veiculo.km.toLocaleString()} km\n✅ ${veiculo.cor}\n✅ ${veiculo.cambio}\n✅ ${veiculo.combustivel}\n\n💰 R$ ${veiculo.valor.toLocaleString()}\n\n📲 Entre em contato!`
+                        }
+                    }
+                };
+            }
+        };
+
+        // =============================================================================
+        // MOTOR DE ESTOQUE INTELIGENTE (Público → Estoque)
+        // =============================================================================
+        const MotorEstoqueInteligente = {
+            // Dados históricos de preferências por perfil
+            dadosPerfil: {
+                // Por gênero
+                genero: {
+                    'Masculino': { marcas: ['VOLKSWAGEN', 'CHEVROLET', 'FORD'], categorias: ['Hatch', 'Seda'], cores: ['Preto', 'Prata', 'Branco'], cambio: 'Manual' },
+                    'Feminino': { marcas: ['FIAT', 'FORD', 'HYUNDAI'], categorias: ['Hatch', 'SUV'], cores: ['Branco', 'Vermelho', 'Prata'], cambio: 'Automatico' }
+                },
+                // Por faixa etária
+                faixaEtaria: {
+                    '18-24': { faixaPreco: [30000, 55000], preferencias: ['Economico', 'Esportivo'], financiamento: 70 },
+                    '25-34': { faixaPreco: [40000, 80000], preferencias: ['Tecnologia', 'Design'], financiamento: 65 },
+                    '35-44': { faixaPreco: [60000, 120000], preferencias: ['Conforto', 'Seguranca'], financiamento: 55 },
+                    '45-54': { faixaPreco: [80000, 150000], preferencias: ['Status', 'Conforto'], financiamento: 40 },
+                    '55+': { faixaPreco: [70000, 130000], preferencias: ['Conforto', 'Manutencao'], financiamento: 25 }
+                },
+                // Por renda
+                renda: {
+                    'Ate 5k': { categorias: ['Hatch'], marcas: ['VOLKSWAGEN', 'FIAT', 'CHEVROLET'], maxPreco: 50000 },
+                    '5k-10k': { categorias: ['Hatch', 'Seda'], marcas: ['VOLKSWAGEN', 'CHEVROLET', 'HYUNDAI'], maxPreco: 90000 },
+                    '10k-20k': { categorias: ['Seda', 'SUV'], marcas: ['TOYOTA', 'HONDA', 'JEEP'], maxPreco: 150000 },
+                    '20k+': { categorias: ['SUV', 'Seda'], marcas: ['TOYOTA', 'HONDA', 'BMW'], maxPreco: 250000 }
+                }
+            },
+
+            // Catálogo de veículos recomendados para compra
+            catalogoRecomendado: [
+                { marca: 'VOLKSWAGEN', modelo: 'GOL 1.0', categoria: 'Hatch', precoMedio: 48000, giroMedio: 18, demanda: 95, margemMedia: 12 },
+                { marca: 'VOLKSWAGEN', modelo: 'POLO TSI', categoria: 'Hatch', precoMedio: 88000, giroMedio: 22, demanda: 85, margemMedia: 10 },
+                { marca: 'VOLKSWAGEN', modelo: 'T-CROSS', categoria: 'SUV', precoMedio: 125000, giroMedio: 25, demanda: 80, margemMedia: 9 },
+                { marca: 'CHEVROLET', modelo: 'ONIX LT', categoria: 'Hatch', precoMedio: 75000, giroMedio: 15, demanda: 92, margemMedia: 11 },
+                { marca: 'CHEVROLET', modelo: 'TRACKER', categoria: 'SUV', precoMedio: 140000, giroMedio: 28, demanda: 78, margemMedia: 8 },
+                { marca: 'CHEVROLET', modelo: 'CRUZE', categoria: 'Seda', precoMedio: 115000, giroMedio: 35, demanda: 65, margemMedia: 9 },
+                { marca: 'FIAT', modelo: 'ARGO', categoria: 'Hatch', precoMedio: 72000, giroMedio: 20, demanda: 88, margemMedia: 10 },
+                { marca: 'FIAT', modelo: 'PULSE', categoria: 'SUV', precoMedio: 98000, giroMedio: 22, demanda: 82, margemMedia: 9 },
+                { marca: 'FIAT', modelo: 'STRADA', categoria: 'Utilitario', precoMedio: 95000, giroMedio: 18, demanda: 90, margemMedia: 11 },
+                { marca: 'HYUNDAI', modelo: 'HB20', categoria: 'Hatch', precoMedio: 78000, giroMedio: 20, demanda: 85, margemMedia: 10 },
+                { marca: 'HYUNDAI', modelo: 'CRETA', categoria: 'SUV', precoMedio: 135000, giroMedio: 30, demanda: 75, margemMedia: 8 },
+                { marca: 'TOYOTA', modelo: 'COROLLA', categoria: 'Seda', precoMedio: 145000, giroMedio: 25, demanda: 82, margemMedia: 7 },
+                { marca: 'TOYOTA', modelo: 'COROLLA CROSS', categoria: 'SUV', precoMedio: 175000, giroMedio: 28, demanda: 78, margemMedia: 7 },
+                { marca: 'HONDA', modelo: 'CITY', categoria: 'Seda', precoMedio: 115000, giroMedio: 30, demanda: 72, margemMedia: 8 },
+                { marca: 'HONDA', modelo: 'HR-V', categoria: 'SUV', precoMedio: 155000, giroMedio: 25, demanda: 80, margemMedia: 8 },
+                { marca: 'FORD', modelo: 'KA', categoria: 'Hatch', precoMedio: 52000, giroMedio: 22, demanda: 75, margemMedia: 12 },
+                { marca: 'JEEP', modelo: 'RENEGADE', categoria: 'SUV', precoMedio: 125000, giroMedio: 32, demanda: 70, margemMedia: 8 },
+                { marca: 'JEEP', modelo: 'COMPASS', categoria: 'SUV', precoMedio: 185000, giroMedio: 35, demanda: 68, margemMedia: 7 }
+            ],
+
+            analisar: (perfil) => {
+                const etapas = [
+                    { id: 1, nome: "Analisando perfil do publico-alvo...", icone: "👥", tempo: 800 },
+                    { id: 2, nome: "Consultando historico de vendas por perfil...", icone: "📊", tempo: 1000 },
+                    { id: 3, nome: "Calculando demanda e giro de estoque...", icone: "📈", tempo: 1200 },
+                    { id: 4, nome: "Otimizando mix de produtos...", icone: "🎯", tempo: 1000 },
+                    { id: 5, nome: "Gerando recomendacoes de compra...", icone: "🛒", tempo: 800 }
+                ];
+
+                // Obter preferências do perfil
+                const prefGenero = this.dadosPerfil.genero[perfil.genero] || this.dadosPerfil.genero['Masculino'];
+                const prefIdade = this.dadosPerfil.faixaEtaria[perfil.faixaEtaria] || this.dadosPerfil.faixaEtaria['35-44'];
+                const prefRenda = this.dadosPerfil.renda[perfil.renda] || this.dadosPerfil.renda['5k-10k'];
+
+                // Filtrar e pontuar veículos do catálogo
+                let veiculosRecomendados = this.catalogoRecomendado.map(v => {
+                    let score = v.demanda; // Base: demanda histórica
+
+                    // Bonus por marca preferida do gênero
+                    if (prefGenero.marcas.includes(v.marca)) score += 15;
+
+                    // Bonus por categoria preferida
+                    if (prefGenero.categorias.includes(v.categoria)) score += 20;
+                    if (prefRenda.categorias.includes(v.categoria)) score += 15;
+
+                    // Ajuste por faixa de preço
+                    if (v.precoMedio >= prefIdade.faixaPreco[0] && v.precoMedio <= prefIdade.faixaPreco[1]) {
+                        score += 25;
+                    } else if (v.precoMedio <= prefRenda.maxPreco) {
+                        score += 10;
+                    } else {
+                        score -= 20;
+                    }
+
+                    // Bonus por giro rápido (menos dias no estoque)
+                    if (v.giroMedio <= 20) score += 15;
+                    else if (v.giroMedio <= 30) score += 5;
+
+                    // Bonus por margem
+                    score += v.margemMedia;
+
+                    return { ...v, score: Math.max(0, Math.min(100, score)) };
+                });
+
+                // Ordenar por score
+                veiculosRecomendados = veiculosRecomendados.sort((a, b) => b.score - a.score);
+
+                // Calcular quantidades sugeridas
+                const qtdTotal = perfil.qtdEstoque || 20;
+                let qtdRestante = qtdTotal;
+                const distribuicao = [];
+
+                veiculosRecomendados.slice(0, 8).forEach((v, idx) => {
+                    const proporcao = v.score / veiculosRecomendados.slice(0, 8).reduce((sum, x) => sum + x.score, 0);
+                    let qtd = Math.round(qtdTotal * proporcao);
+                    if (idx === 7) qtd = qtdRestante; // Último pega o resto
+                    qtdRestante -= qtd;
+                    if (qtd > 0) {
+                        distribuicao.push({
+                            ...v,
+                            qtdSugerida: qtd,
+                            investimento: qtd * v.precoMedio,
+                            retornoEsperado: qtd * v.precoMedio * (1 + v.margemMedia / 100),
+                            tempoGiro: v.giroMedio
+                        });
+                    }
+                });
+
+                // Calcular totais
+                const investimentoTotal = distribuicao.reduce((sum, v) => sum + v.investimento, 0);
+                const retornoTotal = distribuicao.reduce((sum, v) => sum + v.retornoEsperado, 0);
+                const lucroEsperado = retornoTotal - investimentoTotal;
+                const giroMedioEstoque = distribuicao.reduce((sum, v) => sum + v.tempoGiro * v.qtdSugerida, 0) / qtdTotal;
+
+                return {
+                    etapas,
+                    resultado: {
+                        perfil,
+                        recomendacoes: distribuicao,
+                        resumo: {
+                            qtdVeiculos: qtdTotal,
+                            investimentoTotal,
+                            retornoEsperado: retornoTotal,
+                            lucroEsperado,
+                            margemMedia: (lucroEsperado / investimentoTotal * 100).toFixed(1),
+                            giroMedioEstoque: Math.round(giroMedioEstoque)
+                        },
+                        insights: [
+                            { tipo: 'positivo', texto: `Perfil ${perfil.genero}, ${perfil.faixaEtaria} tem alta demanda por ${prefGenero.categorias[0]}` },
+                            { tipo: 'positivo', texto: `Marcas preferidas: ${prefGenero.marcas.slice(0, 2).join(', ')}` },
+                            { tipo: 'info', texto: `${prefIdade.financiamento}% deste publico usa financiamento` },
+                            { tipo: 'alerta', texto: `Giro medio esperado: ${Math.round(giroMedioEstoque)} dias` },
+                            { tipo: 'positivo', texto: `Margem media esperada: ${(lucroEsperado / investimentoTotal * 100).toFixed(1)}%` }
+                        ]
+                    }
+                };
+            }
+        };
+
+        // =============================================================================
+        // COMPONENTES
+        // =============================================================================
+
+        // Header
+        const Header = ({ currentPage, setCurrentPage }) => (
+            <header className="bg-dark-800/80 backdrop-blur-xl border-b border-glass-border sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <div className="w-10 h-10 bg-gradient-to-br from-neon-blue to-neon-green rounded-xl flex items-center justify-center glow-blue">
+                                    <span className="text-dark-900 font-bold text-lg">M</span>
+                                </div>
+                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full animate-pulse-glow"></div>
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-bold bg-gradient-to-r from-neon-blue to-neon-green bg-clip-text text-transparent">
+                                    MOBIA
+                                </h1>
+                                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Motor de Recomendacao</p>
+                            </div>
+                        </div>
+
+                        <nav className="flex items-center gap-2">
+                            {[
+                                { id: 'busca', label: 'Busca', icon: '🔍' },
+                                { id: 'recomendacao', label: 'Recomendacao IA', icon: '🤖' },
+                                { id: 'estoque-inteligente', label: 'Estoque Inteligente', icon: '🎯' },
+                                { id: 'insights', label: 'Insights', icon: '📊' }
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setCurrentPage(item.id)}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                                        currentPage === item.id
+                                            ? 'bg-gradient-to-r from-neon-blue/20 to-neon-green/20 text-neon-blue border border-neon-blue/30'
+                                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                    }`}
+                                >
+                                    <span>{item.icon}</span>
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+
+                        <div className="flex items-center gap-3">
+                            <div className="px-3 py-1.5 glass-card rounded-lg flex items-center gap-2">
+                                <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse"></span>
+                                <span className="text-xs text-gray-400">IA Online</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+        );
+
+        // Filtros Avancados
+        const FiltrosAvancados = ({ filtros, setFiltros, onBuscar }) => {
+            const marcas = [...new Set(ESTOQUE.map(v => v.marca))];
+            const categorias = [...new Set(ESTOQUE.map(v => v.categoria))];
+            const cores = [...new Set(ESTOQUE.map(v => v.cor))];
+
+            return (
+                <div className="w-80 shrink-0">
+                    <div className="glass-card rounded-2xl p-5 sticky top-24">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-8 h-8 bg-neon-blue/20 rounded-lg flex items-center justify-center">
+                                <span className="text-neon-blue">⚙️</span>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-white">Filtros Avancados</h3>
+                                <p className="text-xs text-gray-500">Refine sua busca estrategica</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-5">
+                            {/* Termo */}
+                            <div>
+                                <label className="flex items-center gap-2 text-xs font-medium text-neon-blue mb-2">
+                                    <span>🔍</span> TERMO
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Placa, Modelo..."
+                                    className="w-full bg-dark-700 border border-glass-border rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-neon-blue focus:outline-none transition-colors"
+                                    value={filtros.termo}
+                                    onChange={(e) => setFiltros({...filtros, termo: e.target.value})}
+                                />
+                            </div>
+
+                            {/* Marca */}
+                            <div>
+                                <label className="flex items-center gap-2 text-xs font-medium text-neon-green mb-2">
+                                    <span>🏭</span> MARCA
+                                </label>
+                                <div className="space-y-2">
+                                    {marcas.map(marca => (
+                                        <label key={marca} className="flex items-center gap-3 cursor-pointer group">
+                                            <input
+                                                type="checkbox"
+                                                className="custom-checkbox"
+                                                checked={filtros.marcas.includes(marca)}
+                                                onChange={() => {
+                                                    const newMarcas = filtros.marcas.includes(marca)
+                                                        ? filtros.marcas.filter(m => m !== marca)
+                                                        : [...filtros.marcas, marca];
+                                                    setFiltros({...filtros, marcas: newMarcas});
+                                                }}
+                                            />
+                                            <span className="text-sm text-gray-400 group-hover:text-white transition-colors">{marca}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Categoria */}
+                            <div>
+                                <label className="flex items-center gap-2 text-xs font-medium text-neon-purple mb-2">
+                                    <span>📁</span> CATEGORIA
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {categorias.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => {
+                                                const newCats = filtros.categorias.includes(cat)
+                                                    ? filtros.categorias.filter(c => c !== cat)
+                                                    : [...filtros.categorias, cat];
+                                                setFiltros({...filtros, categorias: newCats});
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                filtros.categorias.includes(cat)
+                                                    ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30'
+                                                    : 'bg-dark-600 text-gray-400 border border-transparent hover:border-gray-600'
+                                            }`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Faixa de Preco */}
+                            <div>
+                                <label className="flex items-center gap-2 text-xs font-medium text-neon-yellow mb-2">
+                                    <span>💰</span> FAIXA DE PRECO
+                                </label>
+                                <div className="space-y-3">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="200000"
+                                        step="5000"
+                                        value={filtros.precoMax}
+                                        onChange={(e) => setFiltros({...filtros, precoMax: parseInt(e.target.value)})}
+                                        className="w-full"
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500">
+                                        <span>R$ 0</span>
+                                        <span className="text-neon-green font-medium">Ate R$ {filtros.precoMax.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Urgencia */}
+                            <div>
+                                <label className="flex items-center gap-2 text-xs font-medium text-neon-pink mb-2">
+                                    <span>⏰</span> URGENCIA (DIAS NO ESTOQUE)
+                                </label>
+                                <select
+                                    className="w-full bg-dark-700 border border-glass-border rounded-xl px-4 py-3 text-sm text-white focus:border-neon-blue focus:outline-none"
+                                    value={filtros.urgencia}
+                                    onChange={(e) => setFiltros({...filtros, urgencia: e.target.value})}
+                                >
+                                    <option value="todos">Todos</option>
+                                    <option value="novo">Novos (&lt; 15 dias)</option>
+                                    <option value="atencao">Atencao (15-30 dias)</option>
+                                    <option value="urgente">Urgentes (&gt; 30 dias)</option>
+                                </select>
+                            </div>
+
+                            {/* Botao Buscar */}
+                            <button
+                                onClick={onBuscar}
+                                className="w-full py-3 bg-gradient-to-r from-neon-blue to-neon-green text-dark-900 rounded-xl font-semibold text-sm hover:shadow-lg hover:shadow-neon-blue/20 transition-all flex items-center justify-center gap-2"
+                            >
+                                <span>🔍</span>
+                                BUSCAR VEICULOS
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Card de Veiculo
+        const VeiculoCard = ({ veiculo, onAnalisar }) => {
+            const urgenciaColor = veiculo.dias > 30 ? 'bg-red-500' : veiculo.dias > 15 ? 'bg-yellow-500' : 'bg-neon-green';
+
+            return (
+                <div className="glass-card glass-card-hover rounded-2xl overflow-hidden group transition-all duration-300">
+                    <div className="relative h-48 overflow-hidden">
+                        <img src={veiculo.foto} alt={veiculo.modelo} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent"></div>
+                        <div className="absolute top-3 right-3 flex items-center gap-2">
+                            <span className={`px-2 py-1 ${urgenciaColor} text-dark-900 text-xs font-bold rounded-lg`}>
+                                {veiculo.dias}d
+                            </span>
+                        </div>
+                        <div className="absolute bottom-3 left-3">
+                            <span className="px-2 py-1 bg-dark-900/80 text-neon-blue text-xs font-medium rounded-lg border border-neon-blue/30">
+                                {veiculo.categoria}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                            <div>
+                                <p className="text-xs text-neon-blue font-medium">{veiculo.marca}</p>
+                                <h3 className="font-semibold text-white">{veiculo.modelo}</h3>
+                            </div>
+                            <span className="text-xs text-gray-500 font-mono">{veiculo.placa}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
+                            <span>{veiculo.ano}</span>
+                            <span>•</span>
+                            <span>{veiculo.km.toLocaleString()} km</span>
+                            <span>•</span>
+                            <span>{veiculo.cor}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <p className="text-xl font-bold text-neon-green">
+                                R$ {veiculo.valor.toLocaleString()}
+                            </p>
+                            <button
+                                onClick={() => onAnalisar(veiculo)}
+                                className="px-4 py-2 bg-gradient-to-r from-neon-purple/20 to-neon-blue/20 text-neon-blue border border-neon-blue/30 rounded-xl text-xs font-medium hover:bg-neon-blue/20 transition-all flex items-center gap-1"
+                            >
+                                <span>🤖</span> Analisar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Pagina de Busca
+        const BuscaPage = ({ onAnalisar }) => {
+            const [filtros, setFiltros] = useState({
+                termo: '',
+                marcas: [],
+                categorias: [],
+                precoMax: 200000,
+                urgencia: 'todos'
+            });
+            const [resultados, setResultados] = useState(ESTOQUE);
+
+            const buscar = () => {
+                let filtered = ESTOQUE;
+
+                if (filtros.termo) {
+                    const termo = filtros.termo.toLowerCase();
+                    filtered = filtered.filter(v =>
+                        v.modelo.toLowerCase().includes(termo) ||
+                        v.placa.toLowerCase().includes(termo) ||
+                        v.marca.toLowerCase().includes(termo)
+                    );
+                }
+
+                if (filtros.marcas.length > 0) {
+                    filtered = filtered.filter(v => filtros.marcas.includes(v.marca));
+                }
+
+                if (filtros.categorias.length > 0) {
+                    filtered = filtered.filter(v => filtros.categorias.includes(v.categoria));
+                }
+
+                filtered = filtered.filter(v => v.valor <= filtros.precoMax);
+
+                if (filtros.urgencia !== 'todos') {
+                    if (filtros.urgencia === 'novo') filtered = filtered.filter(v => v.dias < 15);
+                    else if (filtros.urgencia === 'atencao') filtered = filtered.filter(v => v.dias >= 15 && v.dias <= 30);
+                    else if (filtros.urgencia === 'urgente') filtered = filtered.filter(v => v.dias > 30);
+                }
+
+                setResultados(filtered);
+            };
+
+            useEffect(() => { buscar(); }, [filtros]);
+
+            return (
+                <div className="flex gap-6">
+                    <FiltrosAvancados filtros={filtros} setFiltros={setFiltros} onBuscar={buscar} />
+
+                    <div className="flex-1">
+                        <div className="glass-card rounded-2xl p-6 mb-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="px-2 py-0.5 bg-neon-green/20 text-neon-green text-[10px] font-bold rounded uppercase tracking-wider">
+                                            Estoque Ativo
+                                        </span>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-white">Explorador de Estoque</h2>
+                                    <p className="text-gray-400 text-sm mt-1">
+                                        Utilize os filtros para encontrar veiculos e gerar recomendacoes inteligentes
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-center px-4 py-2 glass-card rounded-xl">
+                                        <p className="text-2xl font-bold text-neon-blue">{resultados.length}</p>
+                                        <p className="text-[10px] text-gray-500 uppercase">Resultados</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {resultados.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {resultados.map(veiculo => (
+                                    <VeiculoCard key={veiculo.id} veiculo={veiculo} onAnalisar={onAnalisar} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="glass-card rounded-2xl p-12 text-center">
+                                <div className="w-20 h-20 bg-dark-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-4xl">🔍</span>
+                                </div>
+                                <h3 className="text-xl font-semibold text-white mb-2">Nenhum veiculo encontrado</h3>
+                                <p className="text-gray-400">Ajuste os filtros para encontrar veiculos</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Terminal de Analise
+        const TerminalAnalise = ({ etapas, etapaAtual, concluido }) => (
+            <div className="terminal rounded-2xl overflow-hidden">
+                <div className="terminal-header px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="terminal-dot terminal-dot-red"></div>
+                        <div className="terminal-dot terminal-dot-yellow"></div>
+                        <div className="terminal-dot terminal-dot-green"></div>
+                    </div>
+                    <span className="text-xs text-gray-500 font-mono">RECOMMENDATION_ENGINE_V1.EXE</span>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-neon-green text-sm font-mono">VARREDURA EM ANDAMENTO...</span>
+                        <span className="text-white font-mono">{concluido ? '100' : Math.round((etapaAtual / etapas.length) * 100)}%</span>
+                    </div>
+                    <div className="h-1 bg-dark-600 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-neon-blue to-neon-green transition-all duration-500"
+                            style={{ width: concluido ? '100%' : `${(etapaAtual / etapas.length) * 100}%` }}
+                        ></div>
+                    </div>
+
+                    <div className="space-y-3 mt-6">
+                        {etapas.map((etapa, idx) => (
+                            <div key={etapa.id} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                                idx < etapaAtual ? 'bg-neon-green/10' :
+                                idx === etapaAtual ? 'bg-neon-blue/10 border border-neon-blue/30' :
+                                'bg-dark-700/50'
+                            }`}>
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                    idx < etapaAtual ? 'bg-neon-green/20' :
+                                    idx === etapaAtual ? 'bg-neon-blue/20' :
+                                    'bg-dark-600'
+                                }`}>
+                                    {idx < etapaAtual ? (
+                                        <span className="text-neon-green">✓</span>
+                                    ) : idx === etapaAtual ? (
+                                        <span className="animate-spin-slow">⚡</span>
+                                    ) : (
+                                        <span className="text-gray-600">{etapa.icone}</span>
+                                    )}
+                                </div>
+                                <span className={`text-sm font-mono ${
+                                    idx < etapaAtual ? 'text-neon-green' :
+                                    idx === etapaAtual ? 'text-neon-blue' :
+                                    'text-gray-600'
+                                }`}>
+                                    {etapa.nome}
+                                </span>
+                                {idx === etapaAtual && !concluido && (
+                                    <span className="ml-auto text-neon-blue animate-pulse">•••</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        // Resultado da Analise
+        const ResultadoAnalise = ({ resultado }) => {
+            const { veiculo, perfil, estrategia, score, insights, mensagens } = resultado;
+            const [tabAtiva, setTabAtiva] = useState('perfil');
+
+            return (
+                <div className="space-y-6 animate-fadeIn">
+                    {/* Header com Score */}
+                    <div className="glass-card rounded-2xl p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <img src={veiculo.foto} className="w-20 h-20 rounded-xl object-cover" />
+                                <div>
+                                    <p className="text-neon-blue text-sm font-medium">{veiculo.marca}</p>
+                                    <h3 className="text-xl font-bold text-white">{veiculo.modelo} {veiculo.ano}</h3>
+                                    <p className="text-gray-400 text-sm">R$ {veiculo.valor.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="relative w-24 h-24">
+                                    <svg className="w-24 h-24 transform -rotate-90">
+                                        <circle cx="48" cy="48" r="40" stroke="#1a222d" strokeWidth="8" fill="none" />
+                                        <circle cx="48" cy="48" r="40" stroke="url(#scoreGradient)" strokeWidth="8" fill="none"
+                                            strokeDasharray={`${score * 2.51} 251`} strokeLinecap="round" />
+                                        <defs>
+                                            <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" stopColor="#00d4ff" />
+                                                <stop offset="100%" stopColor="#00ff88" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-2xl font-bold text-white">{score}</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Score de Potencial</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                        {[
+                            { id: 'perfil', label: 'Perfil do Publico', icon: '👥' },
+                            { id: 'estrategia', label: 'Estrategia', icon: '🎯' },
+                            { id: 'mensagens', label: 'Mensagens', icon: '💬' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setTabAtiva(tab.id)}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                                    tabAtiva === tab.id
+                                        ? 'bg-gradient-to-r from-neon-blue/20 to-neon-green/20 text-neon-blue border border-neon-blue/30'
+                                        : 'glass-card text-gray-400 hover:text-white'
+                                }`}
+                            >
+                                <span>{tab.icon}</span> {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Conteudo das Tabs */}
+                    <div className="glass-card rounded-2xl p-6">
+                        {tabAtiva === 'perfil' && (
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                                        <span className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center text-neon-purple">👤</span>
+                                        Perfil Demografico
+                                    </h4>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center p-3 bg-dark-700 rounded-xl">
+                                            <span className="text-gray-400">Genero Principal</span>
+                                            <span className="text-white font-medium">{perfil.sexo.genero} ({perfil.sexo.pct}%)</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-dark-700 rounded-xl">
+                                            <span className="text-gray-400">Faixa Etaria</span>
+                                            <span className="text-white font-medium">{perfil.faixaEtaria} anos</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-dark-700 rounded-xl">
+                                            <span className="text-gray-400">Classe Social</span>
+                                            <span className="text-white font-medium">{perfil.renda}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center p-3 bg-dark-700 rounded-xl">
+                                            <span className="text-gray-400">Faixa de Preco</span>
+                                            <span className="text-neon-green font-medium">{perfil.faixaPreco}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                                        <span className="w-8 h-8 bg-neon-blue/20 rounded-lg flex items-center justify-center text-neon-blue">🎯</span>
+                                        Interesses para Segmentacao
+                                    </h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {perfil.interesses.map((int, idx) => (
+                                            <span key={idx} className="px-3 py-2 bg-neon-blue/10 text-neon-blue border border-neon-blue/20 rounded-xl text-sm">
+                                                {int}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="mt-6 space-y-2">
+                                        {insights.map((ins, idx) => (
+                                            <div key={idx} className={`flex items-center gap-2 text-sm ${
+                                                ins.tipo === 'positivo' ? 'text-neon-green' :
+                                                ins.tipo === 'alerta' ? 'text-yellow-500' :
+                                                'text-gray-400'
+                                            }`}>
+                                                <span>{ins.tipo === 'positivo' ? '✓' : ins.tipo === 'alerta' ? '⚠' : '•'}</span>
+                                                {ins.texto}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {tabAtiva === 'estrategia' && (
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="p-4 bg-dark-700 rounded-xl text-center">
+                                    <p className="text-3xl font-bold text-neon-green">{estrategia.taxaFinanciamento}%</p>
+                                    <p className="text-xs text-gray-400 mt-1">usam financiamento</p>
+                                </div>
+                                <div className="p-4 bg-dark-700 rounded-xl text-center">
+                                    <p className="text-3xl font-bold text-neon-blue">{estrategia.melhorMes}</p>
+                                    <p className="text-xs text-gray-400 mt-1">melhor epoca</p>
+                                </div>
+                                <div className="p-4 bg-dark-700 rounded-xl text-center">
+                                    <p className="text-3xl font-bold text-neon-purple">R$ {estrategia.orcamentoSugerido}</p>
+                                    <p className="text-xs text-gray-400 mt-1">budget/dia sugerido</p>
+                                </div>
+                                <div className="col-span-3 p-4 bg-gradient-to-r from-neon-blue/10 to-neon-green/10 border border-neon-blue/20 rounded-xl">
+                                    <p className="text-sm text-gray-400">Canal Recomendado</p>
+                                    <p className="text-lg font-semibold text-white">{estrategia.canalPrincipal}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {tabAtiva === 'mensagens' && (
+                            <div className="space-y-4">
+                                {Object.entries(mensagens).map(([plat, msg]) => (
+                                    <div key={plat} className={`p-4 rounded-xl border ${
+                                        plat === 'whatsapp' ? 'bg-green-500/10 border-green-500/20' :
+                                        plat === 'instagram' ? 'bg-pink-500/10 border-pink-500/20' :
+                                        'bg-blue-500/10 border-blue-500/20'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
+                                                {plat === 'whatsapp' ? '📱 WhatsApp' : plat === 'instagram' ? '📸 Instagram' : '👥 Facebook'}
+                                            </span>
+                                            <button className="text-xs text-neon-blue hover:underline">Copiar</button>
+                                        </div>
+                                        <p className="text-sm text-gray-300 whitespace-pre-line">{msg}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Pagina de Recomendacao
+        const RecomendacaoPage = ({ veiculoInicial }) => {
+            const [veiculo, setVeiculo] = useState(veiculoInicial || null);
+            const [analisando, setAnalisando] = useState(false);
+            const [etapaAtual, setEtapaAtual] = useState(0);
+            const [analise, setAnalise] = useState(null);
+            const [concluido, setConcluido] = useState(false);
+
+            const iniciarAnalise = (v) => {
+                setVeiculo(v);
+                setAnalisando(true);
+                setEtapaAtual(0);
+                setConcluido(false);
+                setAnalise(MotorIA.analisar(v));
+            };
+
+            useEffect(() => {
+                if (analisando && analise && etapaAtual < analise.etapas.length) {
+                    const timer = setTimeout(() => {
+                        setEtapaAtual(prev => prev + 1);
+                    }, analise.etapas[etapaAtual].tempo);
+                    return () => clearTimeout(timer);
+                } else if (analisando && analise && etapaAtual >= analise.etapas.length) {
+                    setConcluido(true);
+                    setTimeout(() => setAnalisando(false), 500);
+                }
+            }, [analisando, etapaAtual, analise]);
+
+            useEffect(() => {
+                if (veiculoInicial && !analise) {
+                    iniciarAnalise(veiculoInicial);
+                }
+            }, [veiculoInicial]);
+
+            return (
+                <div className="max-w-4xl mx-auto">
+                    {!veiculo && !analisando && !analise && (
+                        <div className="glass-card rounded-2xl p-12 text-center">
+                            <div className="w-24 h-24 bg-gradient-to-br from-neon-blue/20 to-neon-purple/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-float">
+                                <span className="text-5xl">🤖</span>
+                            </div>
+                            <h2 className="text-2xl font-bold text-white mb-2">Motor de Recomendacao IA</h2>
+                            <p className="text-gray-400 mb-8">Selecione um veiculo na aba Busca para iniciar a analise inteligente</p>
+
+                            <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+                                {ESTOQUE.slice(0, 3).map(v => (
+                                    <button
+                                        key={v.id}
+                                        onClick={() => iniciarAnalise(v)}
+                                        className="p-3 glass-card glass-card-hover rounded-xl text-left transition-all"
+                                    >
+                                        <img src={v.foto} className="w-full h-20 object-cover rounded-lg mb-2" />
+                                        <p className="text-xs text-neon-blue">{v.marca}</p>
+                                        <p className="text-sm font-medium text-white truncate">{v.modelo}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {analisando && analise && (
+                        <div className="space-y-6">
+                            <div className="text-center mb-8">
+                                <div className="w-16 h-16 bg-gradient-to-br from-neon-blue/20 to-neon-green/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl animate-spin-slow">⚙️</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white">
+                                    Analisando <span className="text-neon-blue">{veiculo.marca} {veiculo.modelo}</span>
+                                </h2>
+                                <p className="text-gray-400 mt-2">Nossa IA esta cruzando dados em tempo real</p>
+                            </div>
+                            <TerminalAnalise etapas={analise.etapas} etapaAtual={etapaAtual} concluido={concluido} />
+                        </div>
+                    )}
+
+                    {!analisando && analise && (
+                        <div>
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-bold text-white">Resultado da Analise</h2>
+                                <button
+                                    onClick={() => { setAnalise(null); setVeiculo(null); }}
+                                    className="px-4 py-2 glass-card rounded-xl text-sm text-gray-400 hover:text-white transition-colors"
+                                >
+                                    Nova Analise
+                                </button>
+                            </div>
+                            <ResultadoAnalise resultado={analise.resultado} />
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Pagina de Estoque Inteligente
+        const EstoqueInteligentePage = () => {
+            const [perfil, setPerfil] = useState({
+                genero: 'Masculino',
+                faixaEtaria: '35-44',
+                renda: '5k-10k',
+                qtdEstoque: 20
+            });
+            const [analisando, setAnalisando] = useState(false);
+            const [etapaAtual, setEtapaAtual] = useState(0);
+            const [analise, setAnalise] = useState(null);
+            const [concluido, setConcluido] = useState(false);
+
+            const iniciarAnalise = () => {
+                setAnalisando(true);
+                setEtapaAtual(0);
+                setConcluido(false);
+                setAnalise(MotorEstoqueInteligente.analisar(perfil));
+            };
+
+            useEffect(() => {
+                if (analisando && analise && etapaAtual < analise.etapas.length) {
+                    const timer = setTimeout(() => {
+                        setEtapaAtual(prev => prev + 1);
+                    }, analise.etapas[etapaAtual].tempo);
+                    return () => clearTimeout(timer);
+                } else if (analisando && analise && etapaAtual >= analise.etapas.length) {
+                    setConcluido(true);
+                    setTimeout(() => setAnalisando(false), 500);
+                }
+            }, [analisando, etapaAtual, analise]);
+
+            return (
+                <div className="space-y-6">
+                    {/* Header */}
+                    <div className="glass-card rounded-2xl p-6">
+                        <div className="flex items-center gap-4 mb-2">
+                            <div className="w-12 h-12 bg-gradient-to-br from-neon-purple/20 to-neon-pink/20 rounded-xl flex items-center justify-center">
+                                <span className="text-2xl">🎯</span>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="px-2 py-0.5 bg-neon-purple/20 text-neon-purple text-[10px] font-bold rounded uppercase tracking-wider">
+                                        Novo
+                                    </span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white">Estoque Inteligente</h2>
+                            </div>
+                        </div>
+                        <p className="text-gray-400 ml-16">
+                            Defina o publico-alvo e descubra quais veiculos comprar para maximizar vendas
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Configuracao do Perfil */}
+                        <div className="lg:col-span-1">
+                            <div className="glass-card rounded-2xl p-6 sticky top-24">
+                                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 bg-neon-blue/20 rounded-lg flex items-center justify-center text-neon-blue">👥</span>
+                                    Definir Publico-Alvo
+                                </h3>
+
+                                <div className="space-y-5">
+                                    {/* Genero */}
+                                    <div>
+                                        <label className="text-xs font-medium text-neon-blue mb-2 block">GENERO PRINCIPAL</label>
+                                        <div className="flex gap-2">
+                                            {['Masculino', 'Feminino'].map(g => (
+                                                <button
+                                                    key={g}
+                                                    onClick={() => setPerfil({...perfil, genero: g})}
+                                                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
+                                                        perfil.genero === g
+                                                            ? 'bg-gradient-to-r from-neon-blue/20 to-neon-green/20 text-neon-blue border border-neon-blue/30'
+                                                            : 'bg-dark-700 text-gray-400 border border-transparent hover:border-gray-600'
+                                                    }`}
+                                                >
+                                                    {g === 'Masculino' ? '👨' : '👩'} {g}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Faixa Etaria */}
+                                    <div>
+                                        <label className="text-xs font-medium text-neon-green mb-2 block">FAIXA ETARIA</label>
+                                        <select
+                                            className="w-full bg-dark-700 border border-glass-border rounded-xl px-4 py-3 text-sm text-white focus:border-neon-green focus:outline-none"
+                                            value={perfil.faixaEtaria}
+                                            onChange={(e) => setPerfil({...perfil, faixaEtaria: e.target.value})}
+                                        >
+                                            <option value="18-24">18-24 anos</option>
+                                            <option value="25-34">25-34 anos</option>
+                                            <option value="35-44">35-44 anos</option>
+                                            <option value="45-54">45-54 anos</option>
+                                            <option value="55+">55+ anos</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Renda */}
+                                    <div>
+                                        <label className="text-xs font-medium text-neon-purple mb-2 block">FAIXA DE RENDA</label>
+                                        <select
+                                            className="w-full bg-dark-700 border border-glass-border rounded-xl px-4 py-3 text-sm text-white focus:border-neon-purple focus:outline-none"
+                                            value={perfil.renda}
+                                            onChange={(e) => setPerfil({...perfil, renda: e.target.value})}
+                                        >
+                                            <option value="Ate 5k">Ate R$ 5.000/mes</option>
+                                            <option value="5k-10k">R$ 5.000 - R$ 10.000/mes</option>
+                                            <option value="10k-20k">R$ 10.000 - R$ 20.000/mes</option>
+                                            <option value="20k+">Acima de R$ 20.000/mes</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Qtd Estoque */}
+                                    <div>
+                                        <label className="text-xs font-medium text-neon-yellow mb-2 block">QUANTIDADE DE VEICULOS</label>
+                                        <input
+                                            type="number"
+                                            min="5"
+                                            max="100"
+                                            className="w-full bg-dark-700 border border-glass-border rounded-xl px-4 py-3 text-sm text-white focus:border-neon-yellow focus:outline-none"
+                                            value={perfil.qtdEstoque}
+                                            onChange={(e) => setPerfil({...perfil, qtdEstoque: parseInt(e.target.value) || 20})}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Quantos veiculos deseja ter no estoque?</p>
+                                    </div>
+
+                                    {/* Botao Analisar */}
+                                    <button
+                                        onClick={iniciarAnalise}
+                                        disabled={analisando}
+                                        className="w-full py-3 bg-gradient-to-r from-neon-purple to-neon-pink text-white rounded-xl font-semibold text-sm hover:shadow-lg hover:shadow-neon-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {analisando ? (
+                                            <>
+                                                <span className="animate-spin-slow">⚙️</span>
+                                                Analisando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>🎯</span>
+                                                GERAR RECOMENDACOES
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Resultado */}
+                        <div className="lg:col-span-2">
+                            {!analise && !analisando && (
+                                <div className="glass-card rounded-2xl p-12 text-center h-full flex flex-col items-center justify-center">
+                                    <div className="w-24 h-24 bg-gradient-to-br from-neon-purple/20 to-neon-pink/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-float">
+                                        <span className="text-5xl">📦</span>
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-2">Monte seu Estoque Ideal</h3>
+                                    <p className="text-gray-400 max-w-md">
+                                        Configure o perfil do publico-alvo ao lado e nossa IA ira recomendar
+                                        os melhores veiculos para compor seu estoque
+                                    </p>
+                                </div>
+                            )}
+
+                            {analisando && analise && (
+                                <div className="space-y-6">
+                                    <div className="text-center mb-4">
+                                        <h3 className="text-xl font-bold text-white">
+                                            Analisando perfil: <span className="text-neon-purple">{perfil.genero}, {perfil.faixaEtaria}</span>
+                                        </h3>
+                                        <p className="text-gray-400 text-sm mt-1">Calculando melhor composicao de estoque...</p>
+                                    </div>
+                                    <TerminalAnalise etapas={analise.etapas} etapaAtual={etapaAtual} concluido={concluido} />
+                                </div>
+                            )}
+
+                            {!analisando && analise && (
+                                <div className="space-y-6">
+                                    {/* Resumo */}
+                                    <div className="grid grid-cols-4 gap-4">
+                                        <div className="glass-card rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-neon-blue">{analise.resultado.resumo.qtdVeiculos}</p>
+                                            <p className="text-xs text-gray-400 mt-1">Veiculos</p>
+                                        </div>
+                                        <div className="glass-card rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-neon-green">R$ {(analise.resultado.resumo.investimentoTotal / 1000000).toFixed(1)}M</p>
+                                            <p className="text-xs text-gray-400 mt-1">Investimento</p>
+                                        </div>
+                                        <div className="glass-card rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-neon-purple">{analise.resultado.resumo.margemMedia}%</p>
+                                            <p className="text-xs text-gray-400 mt-1">Margem Media</p>
+                                        </div>
+                                        <div className="glass-card rounded-xl p-4 text-center">
+                                            <p className="text-2xl font-bold text-neon-yellow">{analise.resultado.resumo.giroMedioEstoque}d</p>
+                                            <p className="text-xs text-gray-400 mt-1">Giro Medio</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Insights */}
+                                    <div className="glass-card rounded-xl p-4">
+                                        <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                                            <span>💡</span> Insights do Motor
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {analise.resultado.insights.map((ins, idx) => (
+                                                <div key={idx} className={`flex items-center gap-2 text-sm p-2 rounded-lg ${
+                                                    ins.tipo === 'positivo' ? 'bg-neon-green/10 text-neon-green' :
+                                                    ins.tipo === 'alerta' ? 'bg-yellow-500/10 text-yellow-500' :
+                                                    'bg-neon-blue/10 text-neon-blue'
+                                                }`}>
+                                                    <span>{ins.tipo === 'positivo' ? '✓' : ins.tipo === 'alerta' ? '⚠' : 'ℹ'}</span>
+                                                    {ins.texto}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Lista de Veiculos Recomendados */}
+                                    <div className="glass-card rounded-xl p-4">
+                                        <h4 className="font-medium text-white mb-4 flex items-center gap-2">
+                                            <span>🛒</span> Veiculos Recomendados para Compra
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {analise.resultado.recomendacoes.map((v, idx) => (
+                                                <div key={idx} className="flex items-center justify-between p-4 bg-dark-700 rounded-xl hover:bg-dark-600 transition-colors">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-gradient-to-br from-neon-blue/20 to-neon-purple/20 rounded-lg flex items-center justify-center">
+                                                            <span className="text-lg font-bold text-neon-blue">{idx + 1}</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-white">{v.marca} {v.modelo}</p>
+                                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                                                <span className="px-2 py-0.5 bg-neon-purple/20 text-neon-purple rounded">{v.categoria}</span>
+                                                                <span>•</span>
+                                                                <span>R$ {v.precoMedio.toLocaleString()}</span>
+                                                                <span>•</span>
+                                                                <span>Giro: {v.giroMedio}d</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="flex items-center gap-4">
+                                                            <div>
+                                                                <p className="text-2xl font-bold text-neon-green">{v.qtdSugerida}</p>
+                                                                <p className="text-xs text-gray-500">unidades</p>
+                                                            </div>
+                                                            <div className="w-16 h-16 relative">
+                                                                <svg className="w-16 h-16 transform -rotate-90">
+                                                                    <circle cx="32" cy="32" r="28" stroke="#1a222d" strokeWidth="4" fill="none" />
+                                                                    <circle cx="32" cy="32" r="28" stroke="url(#scoreGrad)" strokeWidth="4" fill="none"
+                                                                        strokeDasharray={`${v.score * 1.76} 176`} strokeLinecap="round" />
+                                                                </svg>
+                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                    <span className="text-sm font-bold text-white">{v.score}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Investimento Total */}
+                                    <div className="glass-card rounded-xl p-6 bg-gradient-to-r from-neon-green/10 to-neon-blue/10 border border-neon-green/20">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-gray-400">Investimento Total Necessario</p>
+                                                <p className="text-3xl font-bold text-white">R$ {analise.resultado.resumo.investimentoTotal.toLocaleString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-400">Retorno Esperado</p>
+                                                <p className="text-3xl font-bold text-neon-green">R$ {analise.resultado.resumo.retornoEsperado.toLocaleString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-400">Lucro Estimado</p>
+                                                <p className="text-3xl font-bold text-neon-yellow">R$ {analise.resultado.resumo.lucroEsperado.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Botao Nova Analise */}
+                                    <button
+                                        onClick={() => setAnalise(null)}
+                                        className="w-full py-3 glass-card rounded-xl text-gray-400 hover:text-white transition-colors"
+                                    >
+                                        Fazer Nova Analise
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Pagina de Insights
+        const InsightsPage = () => (
+            <div className="space-y-6">
+                <div className="glass-card rounded-2xl p-6">
+                    <h2 className="text-2xl font-bold text-white mb-2">Insights do Motor</h2>
+                    <p className="text-gray-400">Dados historicos de {DADOS_HISTORICOS.totalVendas.toLocaleString()} vendas</p>
+                </div>
+
+                <div className="grid grid-cols-4 gap-4">
+                    <div className="glass-card rounded-2xl p-6 text-center">
+                        <p className="text-3xl font-bold text-neon-blue">{DADOS_HISTORICOS.totalVendas.toLocaleString()}</p>
+                        <p className="text-xs text-gray-400 mt-1">Vendas Historicas</p>
+                    </div>
+                    <div className="glass-card rounded-2xl p-6 text-center">
+                        <p className="text-3xl font-bold text-neon-green">R$ {(DADOS_HISTORICOS.ticketMedio/1000).toFixed(0)}k</p>
+                        <p className="text-xs text-gray-400 mt-1">Ticket Medio</p>
+                    </div>
+                    <div className="glass-card rounded-2xl p-6 text-center">
+                        <p className="text-3xl font-bold text-neon-purple">{DADOS_HISTORICOS.taxaFinanciamento}%</p>
+                        <p className="text-xs text-gray-400 mt-1">Financiamento</p>
+                    </div>
+                    <div className="glass-card rounded-2xl p-6 text-center">
+                        <p className="text-3xl font-bold text-neon-pink">{DADOS_HISTORICOS.perfilGenero.M}%</p>
+                        <p className="text-xs text-gray-400 mt-1">Publico Masculino</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                    <div className="glass-card rounded-2xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">Top Modelos Vendidos</h3>
+                        <div className="space-y-3">
+                            {DADOS_HISTORICOS.topModelos.map((m, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-3 bg-dark-700 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <span className="w-6 h-6 bg-neon-blue/20 text-neon-blue rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                                        <span className="text-white">{m.modelo}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-neon-green font-medium">{m.vendas}</p>
+                                        <p className="text-xs text-gray-500">R$ {(m.ticket/1000).toFixed(0)}k</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="glass-card rounded-2xl p-6">
+                        <h3 className="text-lg font-semibold text-white mb-4">Sazonalidade por Categoria</h3>
+                        <div className="space-y-3">
+                            {Object.entries(DADOS_HISTORICOS.sazonalidade).map(([cat, mes]) => (
+                                <div key={cat} className="flex items-center justify-between p-3 bg-dark-700 rounded-xl">
+                                    <span className="text-white">{cat}</span>
+                                    <span className="text-neon-green font-medium">Pico: {mes}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // =============================================================================
+        // APP
+        // =============================================================================
+        const App = () => {
+            const [currentPage, setCurrentPage] = useState('busca');
+            const [veiculoParaAnalise, setVeiculoParaAnalise] = useState(null);
+
+            const handleAnalisar = (veiculo) => {
+                setVeiculoParaAnalise(veiculo);
+                setCurrentPage('recomendacao');
+            };
+
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'busca': return <BuscaPage onAnalisar={handleAnalisar} />;
+                    case 'recomendacao': return <RecomendacaoPage veiculoInicial={veiculoParaAnalise} />;
+                    case 'estoque-inteligente': return <EstoqueInteligentePage />;
+                    case 'insights': return <InsightsPage />;
+                    default: return <BuscaPage onAnalisar={handleAnalisar} />;
+                }
+            };
+
+            useEffect(() => {
+                if (currentPage !== 'recomendacao') {
+                    setVeiculoParaAnalise(null);
+                }
+            }, [currentPage]);
+
+            return (
+                <div className="min-h-screen">
+                    <Header currentPage={currentPage} setCurrentPage={setCurrentPage} />
+                    <main className="max-w-7xl mx-auto px-6 py-8">
+                        {renderPage()}
+                    </main>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
