@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="data/dados_estoque.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -275,15 +276,17 @@
             catalogoRecomendado: [],
             estatisticas: null,
 
-            // Carregar dados do JSON
+            // Carregar dados (embutidos ou via fetch)
             carregarDados: async function() {
                 if (this.dadosCarregados) return true;
 
                 try {
-                    const response = await fetch('data/estoque_inteligente.json');
-                    if (!response.ok) throw new Error('Falha ao carregar dados');
+                    // Usar dados embutidos se disponíveis (funciona sem servidor)
+                    const dados = typeof DADOS_ESTOQUE_INTELIGENTE !== 'undefined'
+                        ? DADOS_ESTOQUE_INTELIGENTE
+                        : await fetch('data/estoque_inteligente.json').then(r => r.json());
 
-                    const dados = await response.json();
+                    if (!dados) throw new Error('Dados não encontrados');
 
                     // Mapear dados para o formato interno
                     this.dadosPerfil = {
