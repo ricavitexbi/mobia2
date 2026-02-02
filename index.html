@@ -267,73 +267,125 @@
         // =============================================================================
         // MOTOR DE ESTOQUE INTELIGENTE (Público → Estoque)
         // =============================================================================
+        // Motor de Estoque Inteligente com dados dinâmicos do JSON
         const MotorEstoqueInteligente = {
-            // Dados históricos de preferências por perfil (baseados em análise real)
-            dadosPerfil: {
-                // Por gênero (dados reais: M=3301, F=998 vendas)
-                genero: {
-                    'Masculino': {
-                        marcas: ['VOLKSWAGEN', 'CHEVROLET', 'FORD'],
-                        categorias: ['Hatch', 'Seda'],
-                        cores: ['Branca', 'Prata', 'Vermelha', 'Cinza', 'Preta'], // 25%, 18%, 14%, 11%, 11%
-                        coresPct: { 'Branca': 25, 'Prata': 18, 'Vermelha': 14, 'Cinza': 11, 'Preta': 11 },
-                        idadeVeiculo: { preferido: 'Usado', distribuicao: { 'Seminovo': 10, 'Usado Recente': 21, 'Usado': 29, 'Usado Antigo': 39 } }
-                    },
-                    'Feminino': {
-                        marcas: ['FIAT', 'FORD', 'HYUNDAI'],
-                        categorias: ['Hatch', 'SUV'],
-                        cores: ['Branca', 'Prata', 'Preta', 'Vermelha', 'Cinza'], // 26%, 19%, 15%, 12%, 10%
-                        coresPct: { 'Branca': 26, 'Prata': 19, 'Preta': 15, 'Vermelha': 12, 'Cinza': 10 },
-                        idadeVeiculo: { preferido: 'Usado Recente', distribuicao: { 'Seminovo': 13, 'Usado Recente': 23, 'Usado': 30, 'Usado Antigo': 32 } }
+            // Estado dos dados carregados
+            dadosCarregados: false,
+            dadosPerfil: null,
+            catalogoRecomendado: [],
+            estatisticas: null,
+
+            // Carregar dados do JSON
+            carregarDados: async function() {
+                if (this.dadosCarregados) return true;
+
+                try {
+                    const response = await fetch('data/estoque_inteligente.json');
+                    if (!response.ok) throw new Error('Falha ao carregar dados');
+
+                    const dados = await response.json();
+
+                    // Mapear dados para o formato interno
+                    this.dadosPerfil = {
+                        genero: {},
+                        faixaEtaria: {},
+                        categoria: {},
+                        renda: {
+                            'Ate 5k': { categorias: ['Hatch'], marcas: [], maxPreco: 50000, idadeVeiculo: 'Usado Antigo' },
+                            '5k-10k': { categorias: ['Hatch', 'Seda'], marcas: [], maxPreco: 90000, idadeVeiculo: 'Usado' },
+                            '10k-20k': { categorias: ['Seda', 'SUV'], marcas: [], maxPreco: 150000, idadeVeiculo: 'Usado Recente' },
+                            '20k+': { categorias: ['SUV', 'Seda'], marcas: [], maxPreco: 250000, idadeVeiculo: 'Seminovo' }
+                        }
+                    };
+
+                    // Processar dados de genero
+                    for (const [genero, perfil] of Object.entries(dados.dadosPerfil.genero || {})) {
+                        this.dadosPerfil.genero[genero] = {
+                            marcas: perfil.marcas || [],
+                            categorias: perfil.categorias || ['Hatch'],
+                            cores: perfil.cores || ['BRANCA', 'PRATA'],
+                            coresPct: perfil.coresPct || {},
+                            idadeVeiculo: perfil.idadeVeiculo || { preferido: 'Usado', distribuicao: {} }
+                        };
                     }
-                },
-                // Por faixa etária (com preferência de cor - dados reais)
-                faixaEtaria: {
-                    '18-24': { faixaPreco: [30000, 55000], preferencias: ['Economico', 'Esportivo'], financiamento: 70, cores: ['Branca', 'Prata', 'Preta'], idadeVeiculo: 'Usado' },
-                    '25-34': { faixaPreco: [40000, 80000], preferencias: ['Tecnologia', 'Design'], financiamento: 65, cores: ['Branca', 'Prata', 'Preta'], idadeVeiculo: 'Usado Recente' }, // 30%, 22%, 20%
-                    '35-44': { faixaPreco: [60000, 120000], preferencias: ['Conforto', 'Seguranca'], financiamento: 55, cores: ['Branca', 'Prata', 'Preta'], idadeVeiculo: 'Usado Recente' }, // 27%, 23%, 23%
-                    '45-54': { faixaPreco: [80000, 150000], preferencias: ['Status', 'Conforto'], financiamento: 40, cores: ['Branca', 'Prata', 'Preta'], idadeVeiculo: 'Seminovo' }, // 25%, 23%, 19%
-                    '55+': { faixaPreco: [70000, 130000], preferencias: ['Conforto', 'Manutencao'], financiamento: 25, cores: ['Branca', 'Prata', 'Preta'], idadeVeiculo: 'Seminovo' } // 24%, 23%, 17%
-                },
-                // Por categoria de veículo (dados reais)
-                categoria: {
-                    'Hatch': { cores: ['Branca', 'Vermelha', 'Prata'], coresPct: { 'Branca': 28, 'Vermelha': 17, 'Prata': 16 } },
-                    'SUV': { cores: ['Preta', 'Branca', 'Prata'], coresPct: { 'Preta': 32, 'Branca': 28, 'Prata': 23 } },
-                    'Seda': { cores: ['Preta', 'Prata', 'Branca'], coresPct: { 'Preta': 25, 'Prata': 22, 'Branca': 20 } },
-                    'Utilitario': { cores: ['Branca', 'Prata', 'Vermelha'], coresPct: { 'Branca': 30, 'Prata': 20, 'Vermelha': 15 } }
-                },
-                // Por renda
-                renda: {
-                    'Ate 5k': { categorias: ['Hatch'], marcas: ['VOLKSWAGEN', 'FIAT', 'CHEVROLET'], maxPreco: 50000, idadeVeiculo: 'Usado Antigo' },
-                    '5k-10k': { categorias: ['Hatch', 'Seda'], marcas: ['VOLKSWAGEN', 'CHEVROLET', 'HYUNDAI'], maxPreco: 90000, idadeVeiculo: 'Usado' },
-                    '10k-20k': { categorias: ['Seda', 'SUV'], marcas: ['TOYOTA', 'HONDA', 'JEEP'], maxPreco: 150000, idadeVeiculo: 'Usado Recente' },
-                    '20k+': { categorias: ['SUV', 'Seda'], marcas: ['TOYOTA', 'HONDA', 'BMW'], maxPreco: 250000, idadeVeiculo: 'Seminovo' }
+
+                    // Processar dados de faixa etaria
+                    const faixasPreco = {
+                        '18-24': [20000, 55000],
+                        '25-34': [30000, 80000],
+                        '35-44': [40000, 120000],
+                        '45-54': [50000, 150000],
+                        '55-64': [50000, 130000],
+                        '65+': [40000, 120000]
+                    };
+
+                    for (const [faixa, perfil] of Object.entries(dados.dadosPerfil.faixaEtaria || {})) {
+                        this.dadosPerfil.faixaEtaria[faixa] = {
+                            faixaPreco: faixasPreco[faixa] || [30000, 100000],
+                            preferencias: perfil.categorias || [],
+                            financiamento: 50,
+                            cores: perfil.cores || ['BRANCA', 'PRATA'],
+                            idadeVeiculo: perfil.idadeVeiculo?.preferido || 'Usado'
+                        };
+                    }
+
+                    // Processar dados de categoria
+                    for (const [cat, perfil] of Object.entries(dados.dadosPerfil.categoria || {})) {
+                        this.dadosPerfil.categoria[cat] = {
+                            cores: perfil.cores || [],
+                            coresPct: perfil.coresPct || {}
+                        };
+                    }
+
+                    // Processar catalogo de veiculos - converter do formato JSON
+                    this.catalogoRecomendado = (dados.catalogoRecomendado || []).map(v => ({
+                        marca: v.marca,
+                        modelo: v.modelo,
+                        categoria: v.categoria,
+                        precoMedio: v.precoMedio,
+                        giroMedio: v.idadeMedia ? Math.round(v.idadeMedia * 3) : 25, // Estimativa de giro baseada em idade
+                        demanda: Math.min(100, Math.round(v.qtdVendas * 2)), // Score de demanda baseado em vendas
+                        margemMedia: 10, // Margem estimada
+                        coresTop: v.coresTop || ['BRANCA', 'PRATA', 'PRETA'],
+                        idadeTipo: v.idadeTipo || 'Usado',
+                        qtdVendas: v.qtdVendas,
+                        taxaFinanciamento: v.taxaFinanciamento,
+                        sexoPrincipal: v.sexoPrincipal,
+                        faixaEtariaPrincipal: v.faixaEtariaPrincipal
+                    }));
+
+                    this.estatisticas = dados.estatisticas;
+                    this.dadosCarregados = true;
+
+                    console.log('Dados do Estoque Inteligente carregados:', {
+                        veiculos: this.catalogoRecomendado.length,
+                        generos: Object.keys(this.dadosPerfil.genero),
+                        faixas: Object.keys(this.dadosPerfil.faixaEtaria)
+                    });
+
+                    return true;
+                } catch (error) {
+                    console.error('Erro ao carregar dados:', error);
+                    // Fallback para dados minimos
+                    this.dadosPerfil = {
+                        genero: {
+                            'Masculino': { marcas: ['FORD', 'CHEVROLET'], categorias: ['Hatch', 'Seda'], cores: ['BRANCA', 'PRATA'], coresPct: {}, idadeVeiculo: { preferido: 'Usado', distribuicao: {} } },
+                            'Feminino': { marcas: ['FORD', 'FIAT'], categorias: ['Hatch', 'SUV'], cores: ['BRANCA', 'PRATA'], coresPct: {}, idadeVeiculo: { preferido: 'Usado Recente', distribuicao: {} } }
+                        },
+                        faixaEtaria: {
+                            '35-44': { faixaPreco: [40000, 120000], preferencias: [], financiamento: 50, cores: ['BRANCA'], idadeVeiculo: 'Usado' }
+                        },
+                        categoria: {},
+                        renda: {
+                            '5k-10k': { categorias: ['Hatch'], marcas: [], maxPreco: 90000, idadeVeiculo: 'Usado' }
+                        }
+                    };
+                    this.catalogoRecomendado = [];
+                    return false;
                 }
             },
 
-            // Catálogo de veículos recomendados para compra (com cores e idade)
-            catalogoRecomendado: [
-                { marca: 'VOLKSWAGEN', modelo: 'GOL 1.0', categoria: 'Hatch', precoMedio: 48000, giroMedio: 18, demanda: 95, margemMedia: 12, coresTop: ['Branca', 'Vermelha', 'Prata'], idadeTipo: 'Usado' },
-                { marca: 'VOLKSWAGEN', modelo: 'POLO TSI', categoria: 'Hatch', precoMedio: 88000, giroMedio: 22, demanda: 85, margemMedia: 10, coresTop: ['Branca', 'Prata', 'Vermelha'], idadeTipo: 'Usado Recente' },
-                { marca: 'VOLKSWAGEN', modelo: 'T-CROSS', categoria: 'SUV', precoMedio: 125000, giroMedio: 25, demanda: 80, margemMedia: 9, coresTop: ['Preta', 'Branca', 'Prata'], idadeTipo: 'Seminovo' },
-                { marca: 'CHEVROLET', modelo: 'ONIX LT', categoria: 'Hatch', precoMedio: 75000, giroMedio: 15, demanda: 92, margemMedia: 11, coresTop: ['Branca', 'Prata', 'Preta'], idadeTipo: 'Usado Recente' },
-                { marca: 'CHEVROLET', modelo: 'TRACKER', categoria: 'SUV', precoMedio: 140000, giroMedio: 28, demanda: 78, margemMedia: 8, coresTop: ['Preta', 'Branca', 'Cinza'], idadeTipo: 'Seminovo' },
-                { marca: 'CHEVROLET', modelo: 'CRUZE', categoria: 'Seda', precoMedio: 115000, giroMedio: 35, demanda: 65, margemMedia: 9, coresTop: ['Preta', 'Prata', 'Branca'], idadeTipo: 'Usado Recente' },
-                { marca: 'FIAT', modelo: 'ARGO', categoria: 'Hatch', precoMedio: 72000, giroMedio: 20, demanda: 88, margemMedia: 10, coresTop: ['Branca', 'Vermelha', 'Prata'], idadeTipo: 'Usado Recente' },
-                { marca: 'FIAT', modelo: 'PULSE', categoria: 'SUV', precoMedio: 98000, giroMedio: 22, demanda: 82, margemMedia: 9, coresTop: ['Preta', 'Branca', 'Cinza'], idadeTipo: 'Seminovo' },
-                { marca: 'FIAT', modelo: 'STRADA', categoria: 'Utilitario', precoMedio: 95000, giroMedio: 18, demanda: 90, margemMedia: 11, coresTop: ['Branca', 'Prata', 'Vermelha'], idadeTipo: 'Usado Recente' },
-                { marca: 'HYUNDAI', modelo: 'HB20', categoria: 'Hatch', precoMedio: 78000, giroMedio: 20, demanda: 85, margemMedia: 10, coresTop: ['Branca', 'Prata', 'Preta'], idadeTipo: 'Usado Recente' },
-                { marca: 'HYUNDAI', modelo: 'CRETA', categoria: 'SUV', precoMedio: 135000, giroMedio: 30, demanda: 75, margemMedia: 8, coresTop: ['Preta', 'Branca', 'Prata'], idadeTipo: 'Seminovo' },
-                { marca: 'TOYOTA', modelo: 'COROLLA', categoria: 'Seda', precoMedio: 145000, giroMedio: 25, demanda: 82, margemMedia: 7, coresTop: ['Preta', 'Prata', 'Branca'], idadeTipo: 'Seminovo' },
-                { marca: 'TOYOTA', modelo: 'COROLLA CROSS', categoria: 'SUV', precoMedio: 175000, giroMedio: 28, demanda: 78, margemMedia: 7, coresTop: ['Preta', 'Branca', 'Prata'], idadeTipo: 'Seminovo' },
-                { marca: 'HONDA', modelo: 'CITY', categoria: 'Seda', precoMedio: 115000, giroMedio: 30, demanda: 72, margemMedia: 8, coresTop: ['Preta', 'Prata', 'Branca'], idadeTipo: 'Usado Recente' },
-                { marca: 'HONDA', modelo: 'HR-V', categoria: 'SUV', precoMedio: 155000, giroMedio: 25, demanda: 80, margemMedia: 8, coresTop: ['Preta', 'Branca', 'Cinza'], idadeTipo: 'Seminovo' },
-                { marca: 'FORD', modelo: 'KA', categoria: 'Hatch', precoMedio: 52000, giroMedio: 22, demanda: 75, margemMedia: 12, coresTop: ['Branca', 'Prata', 'Vermelha'], idadeTipo: 'Usado' },
-                { marca: 'JEEP', modelo: 'RENEGADE', categoria: 'SUV', precoMedio: 125000, giroMedio: 32, demanda: 70, margemMedia: 8, coresTop: ['Preta', 'Branca', 'Verde'], idadeTipo: 'Usado Recente' },
-                { marca: 'JEEP', modelo: 'COMPASS', categoria: 'SUV', precoMedio: 185000, giroMedio: 35, demanda: 68, margemMedia: 7, coresTop: ['Preta', 'Branca', 'Prata'], idadeTipo: 'Seminovo' }
-            ],
-
-            analisar: (perfil) => {
+            analisar: function(perfil) {
                 const etapas = [
                     { id: 1, nome: "Analisando perfil do publico-alvo...", icone: "👥", tempo: 800 },
                     { id: 2, nome: "Consultando historico de vendas por perfil...", icone: "📊", tempo: 1000 },
@@ -1123,8 +1175,26 @@
             const [etapaAtual, setEtapaAtual] = useState(0);
             const [analise, setAnalise] = useState(null);
             const [concluido, setConcluido] = useState(false);
+            const [carregando, setCarregando] = useState(true);
+            const [dadosDisponiveis, setDadosDisponiveis] = useState(false);
+            const [estatisticas, setEstatisticas] = useState(null);
+
+            // Carregar dados do JSON na montagem
+            useEffect(() => {
+                const carregarDados = async () => {
+                    setCarregando(true);
+                    const sucesso = await MotorEstoqueInteligente.carregarDados();
+                    setDadosDisponiveis(sucesso);
+                    if (MotorEstoqueInteligente.estatisticas) {
+                        setEstatisticas(MotorEstoqueInteligente.estatisticas);
+                    }
+                    setCarregando(false);
+                };
+                carregarDados();
+            }, []);
 
             const iniciarAnalise = () => {
+                if (!dadosDisponiveis) return;
                 setAnalisando(true);
                 setEtapaAtual(0);
                 setConcluido(false);
@@ -1243,10 +1313,15 @@
                                     {/* Botao Analisar */}
                                     <button
                                         onClick={iniciarAnalise}
-                                        disabled={analisando}
+                                        disabled={analisando || carregando || !dadosDisponiveis}
                                         className="w-full py-3 bg-gradient-to-r from-neon-purple to-neon-pink text-white rounded-xl font-semibold text-sm hover:shadow-lg hover:shadow-neon-purple/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        {analisando ? (
+                                        {carregando ? (
+                                            <>
+                                                <span className="animate-spin-slow">⏳</span>
+                                                Carregando dados...
+                                            </>
+                                        ) : analisando ? (
                                             <>
                                                 <span className="animate-spin-slow">⚙️</span>
                                                 Analisando...
@@ -1258,6 +1333,25 @@
                                             </>
                                         )}
                                     </button>
+
+                                    {/* Status dos dados */}
+                                    {!carregando && dadosDisponiveis && estatisticas && (
+                                        <div className="mt-4 p-3 bg-neon-green/10 border border-neon-green/20 rounded-lg">
+                                            <p className="text-xs text-neon-green flex items-center gap-2">
+                                                <span>✓</span>
+                                                <span>{estatisticas.totalModelos} modelos e {estatisticas.totalVendas.toLocaleString('pt-BR')} vendas carregadas</span>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {!carregando && !dadosDisponiveis && (
+                                        <div className="mt-4 p-3 bg-neon-yellow/10 border border-neon-yellow/20 rounded-lg">
+                                            <p className="text-xs text-neon-yellow flex items-center gap-2">
+                                                <span>⚠️</span>
+                                                <span>Usando dados de fallback. Verifique o arquivo JSON.</span>
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1265,15 +1359,83 @@
                         {/* Resultado */}
                         <div className="lg:col-span-2">
                             {!analise && !analisando && (
-                                <div className="glass-card rounded-2xl p-12 text-center h-full flex flex-col items-center justify-center">
-                                    <div className="w-24 h-24 bg-gradient-to-br from-neon-purple/20 to-neon-pink/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-float">
-                                        <span className="text-5xl">📦</span>
+                                <div className="space-y-6">
+                                    {/* Card principal */}
+                                    <div className="glass-card rounded-2xl p-8 text-center">
+                                        <div className="w-20 h-20 bg-gradient-to-br from-neon-purple/20 to-neon-pink/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-float">
+                                            <span className="text-4xl">📦</span>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Monte seu Estoque Ideal</h3>
+                                        <p className="text-gray-400 max-w-md mx-auto text-sm">
+                                            Configure o perfil do publico-alvo ao lado e nossa IA ira recomendar
+                                            os melhores veiculos para compor seu estoque
+                                        </p>
                                     </div>
-                                    <h3 className="text-xl font-bold text-white mb-2">Monte seu Estoque Ideal</h3>
-                                    <p className="text-gray-400 max-w-md">
-                                        Configure o perfil do publico-alvo ao lado e nossa IA ira recomendar
-                                        os melhores veiculos para compor seu estoque
-                                    </p>
+
+                                    {/* Estatisticas dos dados carregados */}
+                                    {!carregando && estatisticas && (
+                                        <div className="glass-card rounded-2xl p-6">
+                                            <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                                <span className="w-8 h-8 bg-neon-blue/20 rounded-lg flex items-center justify-center">📊</span>
+                                                Base de Dados Carregada
+                                            </h4>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                                <div className="text-center p-3 bg-dark-700/50 rounded-xl">
+                                                    <p className="text-2xl font-bold text-neon-blue">{estatisticas.totalVendas?.toLocaleString('pt-BR') || '-'}</p>
+                                                    <p className="text-xs text-gray-400">Vendas Historicas</p>
+                                                </div>
+                                                <div className="text-center p-3 bg-dark-700/50 rounded-xl">
+                                                    <p className="text-2xl font-bold text-neon-green">{estatisticas.totalModelos || '-'}</p>
+                                                    <p className="text-xs text-gray-400">Modelos Analisados</p>
+                                                </div>
+                                                <div className="text-center p-3 bg-dark-700/50 rounded-xl">
+                                                    <p className="text-2xl font-bold text-neon-purple">R$ {estatisticas.ticketMedio ? (estatisticas.ticketMedio / 1000).toFixed(0) + 'k' : '-'}</p>
+                                                    <p className="text-xs text-gray-400">Ticket Medio</p>
+                                                </div>
+                                                <div className="text-center p-3 bg-dark-700/50 rounded-xl">
+                                                    <p className="text-2xl font-bold text-neon-yellow">{estatisticas.taxaFinanciamentoMedia?.toFixed(0) || '-'}%</p>
+                                                    <p className="text-xs text-gray-400">Financiados</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Cores mais vendidas */}
+                                            <div className="mb-4">
+                                                <p className="text-xs font-medium text-gray-400 mb-2">CORES MAIS VENDIDAS</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(estatisticas.coresMaisVendidas || []).slice(0, 6).map((cor, idx) => (
+                                                        <span key={idx} className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                                            idx === 0 ? 'bg-neon-green/20 text-neon-green' :
+                                                            idx === 1 ? 'bg-neon-blue/20 text-neon-blue' :
+                                                            idx === 2 ? 'bg-neon-purple/20 text-neon-purple' :
+                                                            'bg-gray-700 text-gray-300'
+                                                        }`}>
+                                                            {cor}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Marcas mais vendidas */}
+                                            <div>
+                                                <p className="text-xs font-medium text-gray-400 mb-2">MARCAS MAIS VENDIDAS</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(estatisticas.marcasMaisVendidas || []).slice(0, 6).map((marca, idx) => (
+                                                        <span key={idx} className="px-3 py-1 bg-dark-600 rounded-lg text-xs text-gray-300">
+                                                            {marca}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Loading state */}
+                                    {carregando && (
+                                        <div className="glass-card rounded-2xl p-8 text-center">
+                                            <div className="animate-spin-slow text-4xl mb-4">⏳</div>
+                                            <p className="text-gray-400">Carregando base de dados...</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
