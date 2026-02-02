@@ -542,6 +542,7 @@
                                 { id: 'busca', label: 'Busca', icon: '🔍' },
                                 { id: 'recomendacao', label: 'Recomendacao IA', icon: '🤖' },
                                 { id: 'estoque-inteligente', label: 'Estoque Inteligente', icon: '🎯' },
+                                { id: 'radar', label: 'Radar', icon: '📡' },
                                 { id: 'insights', label: 'Insights', icon: '📊' }
                             ].map(item => (
                                 <button
@@ -1622,6 +1623,516 @@
             );
         };
 
+        // =============================================================================
+        // MOTOR DE TENDENCIAS E OPORTUNIDADES
+        // =============================================================================
+        const MotorTendencias = {
+            // Calendario de eventos que impactam vendas
+            eventos: [
+                { id: 1, nome: 'Carnaval', mes: 2, dia: 10, impacto: 'negativo', categorias: ['Hatch', 'Seda'], desc: 'Baixa demanda - focar em promo pos-carnaval' },
+                { id: 2, nome: 'Dia das Maes', mes: 5, dia: 12, impacto: 'positivo', categorias: ['Hatch', 'SUV'], desc: 'Alta demanda feminina - destacar cores claras' },
+                { id: 3, nome: 'Dia dos Namorados', mes: 6, dia: 12, impacto: 'positivo', categorias: ['Hatch'], desc: 'Casais jovens buscando primeiro carro' },
+                { id: 4, nome: 'Ferias Julho', mes: 7, dia: 1, impacto: 'positivo', categorias: ['SUV', 'Utilitario'], desc: 'Familias planejando viagens - SUVs em alta' },
+                { id: 5, nome: 'Dia dos Pais', mes: 8, dia: 11, impacto: 'positivo', categorias: ['Seda', 'SUV'], desc: 'Alta demanda masculina 35+' },
+                { id: 6, nome: 'Black Friday', mes: 11, dia: 29, impacto: 'muito_positivo', categorias: ['Hatch', 'Seda', 'SUV'], desc: 'Pico de vendas - preparar estoque!' },
+                { id: 7, nome: '13o Salario', mes: 12, dia: 1, impacto: 'muito_positivo', categorias: ['Hatch', 'Seda'], desc: 'Entrada facilitada - destacar financiamento' },
+                { id: 8, nome: 'Natal/Ano Novo', mes: 12, dia: 20, impacto: 'positivo', categorias: ['SUV', 'Seda'], desc: 'Presente de final de ano - carros premium' },
+                { id: 9, nome: 'Volta as Aulas', mes: 2, dia: 1, impacto: 'positivo', categorias: ['Hatch'], desc: 'Pais comprando carro para filhos universitarios' },
+                { id: 10, nome: 'IPVA/Licenciamento', mes: 1, dia: 15, impacto: 'negativo', categorias: ['Hatch', 'Seda', 'SUV'], desc: 'Gastos com impostos - ofertar parcelamento' }
+            ],
+
+            // Tendencias simuladas (como se viessem do X/Google Trends)
+            tendenciasAtuais: [
+                { termo: 'carro economico', score: 85, variacao: +12, categoria: 'Hatch', insight: 'Alta busca por economia de combustivel' },
+                { termo: 'SUV familiar', score: 78, variacao: +8, categoria: 'SUV', insight: 'Familias buscando espaco e conforto' },
+                { termo: 'carro primeiro emprego', score: 72, variacao: +15, categoria: 'Hatch', insight: 'Jovens 18-24 entrando no mercado' },
+                { termo: 'financiamento carro', score: 68, variacao: +5, categoria: 'Todos', insight: 'Demanda por parcelamento em alta' },
+                { termo: 'carro usado bom estado', score: 65, variacao: +10, categoria: 'Seda', insight: 'Preferencia por seminovos revisados' },
+                { termo: 'pickup trabalho', score: 55, variacao: -3, categoria: 'Utilitario', insight: 'Demanda estavel para trabalho' }
+            ],
+
+            // Gerar oportunidades baseadas no estoque e tendencias
+            gerarOportunidades: function(estoque) {
+                const hoje = new Date();
+                const mesAtual = hoje.getMonth() + 1;
+                const diaAtual = hoje.getDate();
+
+                // Eventos proximos (30 dias)
+                const eventosProximos = this.eventos.filter(e => {
+                    if (e.mes === mesAtual && e.dia >= diaAtual) return true;
+                    if (e.mes === mesAtual + 1 || (mesAtual === 12 && e.mes === 1)) return true;
+                    return false;
+                }).slice(0, 3);
+
+                // Oportunidades por veiculo
+                const oportunidades = estoque.map(v => {
+                    let score = 50; // Base
+                    let tags = [];
+                    let acoes = [];
+
+                    // Verificar tendencias
+                    const tendenciaMatch = this.tendenciasAtuais.find(t =>
+                        t.categoria === v.categoria || t.categoria === 'Todos'
+                    );
+                    if (tendenciaMatch && tendenciaMatch.score > 60) {
+                        score += tendenciaMatch.variacao;
+                        tags.push({ tipo: 'tendencia', texto: tendenciaMatch.termo });
+                    }
+
+                    // Verificar eventos proximos
+                    const eventoMatch = eventosProximos.find(e =>
+                        e.categorias.includes(v.categoria)
+                    );
+                    if (eventoMatch) {
+                        if (eventoMatch.impacto === 'muito_positivo') score += 25;
+                        else if (eventoMatch.impacto === 'positivo') score += 15;
+                        else if (eventoMatch.impacto === 'negativo') score -= 10;
+                        tags.push({ tipo: 'evento', texto: eventoMatch.nome });
+                    }
+
+                    // Urgencia por dias no estoque
+                    if (v.dias > 30) {
+                        score += 20; // Prioridade para vender
+                        tags.push({ tipo: 'urgencia', texto: 'Estoque parado' });
+                        acoes.push('Criar promocao urgente');
+                    }
+
+                    // Acoes sugeridas
+                    if (score > 70) {
+                        acoes.push('Destacar na vitrine');
+                        acoes.push('Impulsionar nas redes');
+                    }
+                    if (v.valor < 60000) {
+                        acoes.push('Destacar financiamento');
+                    }
+
+                    return {
+                        ...v,
+                        oportunidadeScore: Math.min(100, Math.max(0, score)),
+                        tags,
+                        acoes,
+                        tendencia: tendenciaMatch,
+                        evento: eventoMatch
+                    };
+                }).sort((a, b) => b.oportunidadeScore - a.oportunidadeScore);
+
+                return {
+                    oportunidades,
+                    eventosProximos,
+                    tendenciasTop: this.tendenciasAtuais.slice(0, 5),
+                    resumo: {
+                        altaPrioridade: oportunidades.filter(o => o.oportunidadeScore >= 70).length,
+                        mediaPrioridade: oportunidades.filter(o => o.oportunidadeScore >= 50 && o.oportunidadeScore < 70).length,
+                        baixaPrioridade: oportunidades.filter(o => o.oportunidadeScore < 50).length
+                    }
+                };
+            }
+        };
+
+        // Gerador de Copywriting Inteligente
+        const GeradorCopy = {
+            templates: {
+                urgencia: [
+                    "ULTIMAS UNIDADES! {modelo} {ano} por apenas R$ {preco}! Nao perca essa chance unica! {emoji}",
+                    "OFERTA RELAMPAGO! {marca} {modelo} saindo por R$ {preco}! So ate {prazo}! {emoji}",
+                    "QUEIMA DE ESTOQUE! {modelo} com {km}km por R$ {preco}! Corre que e so hoje! {emoji}"
+                ],
+                premium: [
+                    "Exclusividade e elegancia: {marca} {modelo} {ano}, {cor}, apenas {km}km. Invista em voce. {emoji}",
+                    "Para quem nao abre mao de qualidade: {modelo} {ano} impecavel por R$ {preco}. {emoji}",
+                    "Sofisticacao sobre rodas: {marca} {modelo}, cor {cor}, pronto para impressionar. {emoji}"
+                ],
+                economico: [
+                    "Economia garantida! {modelo} {ano} com apenas {km}km. Parcelas a partir de R$ {parcela}/mes! {emoji}",
+                    "Seu primeiro carro te espera! {marca} {modelo} por R$ {preco}. Financiamos em ate 60x! {emoji}",
+                    "Fuja do aluguel! {modelo} {ano} cabe no seu bolso: R$ {preco} ou {parcela}/mes! {emoji}"
+                ],
+                familia: [
+                    "Espaco para toda familia! {marca} {modelo} {ano}, {cor}, perfeito para suas aventuras! {emoji}",
+                    "Seguranca para quem voce ama: {modelo} com {km}km, revisado e pronto para viagens! {emoji}",
+                    "Ferias chegando! {marca} {modelo} {ano} - conforto e espaco para toda a familia! {emoji}"
+                ],
+                jovem: [
+                    "Liberdade sobre rodas! {marca} {modelo} {ano} por R$ {preco}. Bora? {emoji}",
+                    "Seu estilo, seu carro! {modelo} {cor} com {km}km. Parcelas que cabem no bolso! {emoji}",
+                    "Chega de carona! {marca} {modelo} por apenas R$ {parcela}/mes. Vem ser livre! {emoji}"
+                ],
+                evento: {
+                    'Black Friday': "BLACK FRIDAY MOBIA! {modelo} {ano} com desconto REAL: R$ {preco}! So essa semana! {emoji}",
+                    'Dia das Maes': "Presente perfeito para ela! {marca} {modelo} {cor} por R$ {preco}. Feliz Dia das Maes! {emoji}",
+                    'Dia dos Pais': "Pai merece o melhor! {marca} {modelo} {ano} por R$ {preco}. Parcele em ate 60x! {emoji}",
+                    '13o Salario': "Use seu 13o com inteligencia! {modelo} {ano} com entrada facilitada! A partir de R$ {entrada}! {emoji}"
+                }
+            },
+
+            emojis: {
+                urgencia: ['🔥', '⚡', '🚨', '💥'],
+                premium: ['✨', '💎', '🌟', '👑'],
+                economico: ['💰', '🎯', '✅', '💵'],
+                familia: ['👨‍👩‍👧‍👦', '🏡', '❤️', '🚗'],
+                jovem: ['🤙', '😎', '🎉', '🚀'],
+                evento: ['🎁', '🎊', '🏷️', '💝']
+            },
+
+            gerar: function(veiculo, tipo, evento = null) {
+                let template;
+                if (evento && this.templates.evento[evento]) {
+                    template = this.templates.evento[evento];
+                } else {
+                    const templates = this.templates[tipo] || this.templates.economico;
+                    template = templates[Math.floor(Math.random() * templates.length)];
+                }
+
+                const emojis = this.emojis[evento ? 'evento' : tipo] || this.emojis.economico;
+                const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+                const parcela = Math.round(veiculo.valor / 48);
+                const entrada = Math.round(veiculo.valor * 0.2);
+                const prazo = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR');
+
+                return template
+                    .replace('{marca}', veiculo.marca)
+                    .replace('{modelo}', veiculo.modelo)
+                    .replace('{ano}', veiculo.ano)
+                    .replace('{cor}', veiculo.cor?.toLowerCase() || 'impecavel')
+                    .replace('{km}', veiculo.km?.toLocaleString() || '0')
+                    .replace('{preco}', veiculo.valor?.toLocaleString() || '0')
+                    .replace('{parcela}', parcela.toLocaleString())
+                    .replace('{entrada}', entrada.toLocaleString())
+                    .replace('{prazo}', prazo)
+                    .replace('{emoji}', emoji);
+            },
+
+            gerarPacote: function(veiculo, evento = null) {
+                // Determinar tipo baseado no veiculo
+                let tipo = 'economico';
+                if (veiculo.valor > 120000) tipo = 'premium';
+                else if (veiculo.categoria === 'SUV' || veiculo.categoria === 'Utilitario') tipo = 'familia';
+                else if (veiculo.valor < 50000) tipo = 'jovem';
+
+                // Se tem urgencia
+                if (veiculo.dias > 30) tipo = 'urgencia';
+
+                return {
+                    instagram: this.gerar(veiculo, tipo, evento),
+                    facebook: this.gerar(veiculo, tipo, evento),
+                    whatsapp: this.gerar(veiculo, tipo === 'urgencia' ? 'economico' : tipo, evento),
+                    tipo,
+                    hashtags: this.gerarHashtags(veiculo)
+                };
+            },
+
+            gerarHashtags: function(veiculo) {
+                const base = ['#carros', '#seminovos', '#oportunidade', '#financiamento'];
+                const marca = `#${(veiculo.marca || '').toLowerCase().replace(/\s/g, '')}`;
+                const categoria = `#${(veiculo.categoria || '').toLowerCase()}`;
+                return [...base, marca, categoria].slice(0, 8).join(' ');
+            }
+        };
+
+        // Pagina do Radar de Oportunidades
+        const RadarOportunidadesPage = () => {
+            const [dados, setDados] = useState(null);
+            const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
+            const [copyGerado, setCopyGerado] = useState(null);
+            const [carregando, setCarregando] = useState(true);
+
+            useEffect(() => {
+                // Simular carregamento
+                setTimeout(() => {
+                    const resultado = MotorTendencias.gerarOportunidades(ESTOQUE);
+                    setDados(resultado);
+                    setCarregando(false);
+                }, 1000);
+            }, []);
+
+            const gerarCopy = (veiculo) => {
+                setVeiculoSelecionado(veiculo);
+                const evento = veiculo.evento?.nome || null;
+                const copy = GeradorCopy.gerarPacote(veiculo, evento);
+                setCopyGerado(copy);
+            };
+
+            const copiarTexto = (texto) => {
+                navigator.clipboard.writeText(texto);
+            };
+
+            if (carregando) {
+                return (
+                    <div className="flex items-center justify-center h-96">
+                        <div className="text-center">
+                            <div className="w-16 h-16 bg-gradient-to-br from-neon-blue/20 to-neon-purple/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <span className="text-3xl animate-spin-slow">📡</span>
+                            </div>
+                            <p className="text-gray-400">Escaneando tendencias de mercado...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-6">
+                    {/* Header */}
+                    <div className="glass-card rounded-2xl p-6">
+                        <div className="flex items-center gap-4 mb-2">
+                            <div className="w-12 h-12 bg-gradient-to-br from-neon-blue/20 to-neon-green/20 rounded-xl flex items-center justify-center">
+                                <span className="text-2xl">📡</span>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="px-2 py-0.5 bg-neon-green/20 text-neon-green text-[10px] font-bold rounded uppercase tracking-wider animate-pulse">
+                                        Ao Vivo
+                                    </span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white">Radar de Oportunidades</h2>
+                            </div>
+                        </div>
+                        <p className="text-gray-400 ml-16">
+                            Tendencias de mercado, eventos e oportunidades de venda em tempo real
+                        </p>
+                    </div>
+
+                    {/* Metricas Rapidas */}
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="glass-card rounded-xl p-4 text-center border-l-4 border-neon-green">
+                            <p className="text-3xl font-bold text-neon-green">{dados.resumo.altaPrioridade}</p>
+                            <p className="text-xs text-gray-400 mt-1">Alta Prioridade</p>
+                        </div>
+                        <div className="glass-card rounded-xl p-4 text-center border-l-4 border-neon-yellow">
+                            <p className="text-3xl font-bold text-neon-yellow">{dados.resumo.mediaPrioridade}</p>
+                            <p className="text-xs text-gray-400 mt-1">Media Prioridade</p>
+                        </div>
+                        <div className="glass-card rounded-xl p-4 text-center border-l-4 border-neon-blue">
+                            <p className="text-3xl font-bold text-neon-blue">{dados.eventosProximos.length}</p>
+                            <p className="text-xs text-gray-400 mt-1">Eventos Proximos</p>
+                        </div>
+                        <div className="glass-card rounded-xl p-4 text-center border-l-4 border-neon-purple">
+                            <p className="text-3xl font-bold text-neon-purple">{dados.tendenciasTop.length}</p>
+                            <p className="text-xs text-gray-400 mt-1">Tendencias Ativas</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Coluna Esquerda - Tendencias e Eventos */}
+                        <div className="space-y-6">
+                            {/* Tendencias */}
+                            <div className="glass-card rounded-xl p-5">
+                                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 bg-neon-purple/20 rounded-lg flex items-center justify-center">📈</span>
+                                    Tendencias do Mercado
+                                </h3>
+                                <div className="space-y-3">
+                                    {dados.tendenciasTop.map((t, idx) => (
+                                        <div key={idx} className="p-3 bg-dark-700 rounded-lg">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-sm text-white font-medium">{t.termo}</span>
+                                                <span className={`text-xs font-bold ${t.variacao > 0 ? 'text-neon-green' : 'text-red-400'}`}>
+                                                    {t.variacao > 0 ? '↑' : '↓'} {Math.abs(t.variacao)}%
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-dark-600 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-neon-purple to-neon-pink"
+                                                        style={{ width: `${t.score}%` }}
+                                                    ></div>
+                                                </div>
+                                                <span className="text-[10px] text-gray-500">{t.score}</span>
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 mt-1">{t.insight}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Eventos Proximos */}
+                            <div className="glass-card rounded-xl p-5">
+                                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 bg-neon-yellow/20 rounded-lg flex items-center justify-center">📅</span>
+                                    Eventos Proximos
+                                </h3>
+                                <div className="space-y-3">
+                                    {dados.eventosProximos.length > 0 ? dados.eventosProximos.map((e, idx) => (
+                                        <div key={idx} className={`p-3 rounded-lg border-l-4 ${
+                                            e.impacto === 'muito_positivo' ? 'bg-neon-green/10 border-neon-green' :
+                                            e.impacto === 'positivo' ? 'bg-neon-blue/10 border-neon-blue' :
+                                            'bg-red-500/10 border-red-500'
+                                        }`}>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-sm text-white font-medium">{e.nome}</span>
+                                                <span className={`text-[10px] px-2 py-0.5 rounded ${
+                                                    e.impacto === 'muito_positivo' ? 'bg-neon-green/20 text-neon-green' :
+                                                    e.impacto === 'positivo' ? 'bg-neon-blue/20 text-neon-blue' :
+                                                    'bg-red-500/20 text-red-400'
+                                                }`}>
+                                                    {e.impacto === 'muito_positivo' ? '🔥 Muito Positivo' :
+                                                     e.impacto === 'positivo' ? '👍 Positivo' : '⚠️ Atencao'}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-400">{e.desc}</p>
+                                            <div className="flex flex-wrap gap-1 mt-2">
+                                                {e.categorias.map((cat, i) => (
+                                                    <span key={i} className="text-[10px] px-2 py-0.5 bg-dark-600 rounded text-gray-300">
+                                                        {cat}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-sm text-gray-500 text-center py-4">Nenhum evento proximo</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Coluna Central - Oportunidades */}
+                        <div className="lg:col-span-2 space-y-4">
+                            <div className="glass-card rounded-xl p-5">
+                                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                    <span className="w-8 h-8 bg-neon-green/20 rounded-lg flex items-center justify-center">🎯</span>
+                                    Oportunidades de Venda
+                                    <span className="ml-auto text-xs text-gray-500">Clique para gerar copy</span>
+                                </h3>
+                                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                                    {dados.oportunidades.slice(0, 8).map((v, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={() => gerarCopy(v)}
+                                            className={`p-4 bg-dark-700 rounded-xl cursor-pointer transition-all hover:bg-dark-600 ${
+                                                veiculoSelecionado?.id === v.id ? 'ring-2 ring-neon-blue' : ''
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <img src={v.foto} className="w-16 h-16 rounded-lg object-cover" />
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-sm font-medium text-white">{v.marca} {v.modelo}</span>
+                                                        <span className="text-xs text-gray-500">{v.ano}</span>
+                                                    </div>
+                                                    <p className="text-neon-green font-medium">R$ {v.valor.toLocaleString()}</p>
+                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                        {v.tags.map((tag, i) => (
+                                                            <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${
+                                                                tag.tipo === 'tendencia' ? 'bg-neon-purple/20 text-neon-purple' :
+                                                                tag.tipo === 'evento' ? 'bg-neon-yellow/20 text-neon-yellow' :
+                                                                'bg-red-500/20 text-red-400'
+                                                            }`}>
+                                                                {tag.tipo === 'tendencia' ? '📈' : tag.tipo === 'evento' ? '📅' : '⏰'} {tag.texto}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="w-12 h-12 relative">
+                                                        <svg className="w-12 h-12 transform -rotate-90">
+                                                            <circle cx="24" cy="24" r="20" stroke="#1a222d" strokeWidth="3" fill="none" />
+                                                            <circle cx="24" cy="24" r="20" stroke={
+                                                                v.oportunidadeScore >= 70 ? '#00ff88' :
+                                                                v.oportunidadeScore >= 50 ? '#ffd700' : '#666'
+                                                            } strokeWidth="3" fill="none"
+                                                                strokeDasharray={`${v.oportunidadeScore * 1.26} 126`} strokeLinecap="round" />
+                                                        </svg>
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="text-xs font-bold text-white">{v.oportunidadeScore}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {v.acoes.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-dark-600">
+                                                    <p className="text-[10px] text-gray-500 mb-1">ACOES SUGERIDAS:</p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {v.acoes.map((acao, i) => (
+                                                            <span key={i} className="text-[10px] px-2 py-1 bg-neon-blue/10 text-neon-blue rounded">
+                                                                {acao}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Copy Gerado */}
+                            {copyGerado && veiculoSelecionado && (
+                                <div className="glass-card rounded-xl p-5 border border-neon-green/30">
+                                    <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                        <span className="w-8 h-8 bg-neon-pink/20 rounded-lg flex items-center justify-center">✍️</span>
+                                        Copy Gerado para {veiculoSelecionado.marca} {veiculoSelecionado.modelo}
+                                        <span className="ml-auto text-[10px] px-2 py-1 bg-neon-pink/20 text-neon-pink rounded">
+                                            Tipo: {copyGerado.tipo}
+                                        </span>
+                                    </h3>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        {/* Instagram */}
+                                        <div className="p-4 bg-gradient-to-br from-pink-500/10 to-purple-500/10 rounded-xl border border-pink-500/20">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-medium text-pink-400">📸 Instagram</span>
+                                                <button
+                                                    onClick={() => copiarTexto(copyGerado.instagram + '\n\n' + copyGerado.hashtags)}
+                                                    className="text-[10px] text-pink-400 hover:text-pink-300"
+                                                >
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <p className="text-sm text-gray-300 mb-2">{copyGerado.instagram}</p>
+                                            <p className="text-[10px] text-gray-500">{copyGerado.hashtags}</p>
+                                        </div>
+
+                                        {/* Facebook */}
+                                        <div className="p-4 bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-xl border border-blue-500/20">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-medium text-blue-400">👥 Facebook</span>
+                                                <button
+                                                    onClick={() => copiarTexto(copyGerado.facebook)}
+                                                    className="text-[10px] text-blue-400 hover:text-blue-300"
+                                                >
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <p className="text-sm text-gray-300">{copyGerado.facebook}</p>
+                                        </div>
+
+                                        {/* WhatsApp */}
+                                        <div className="p-4 bg-gradient-to-br from-green-500/10 to-green-600/10 rounded-xl border border-green-500/20">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-medium text-green-400">📱 WhatsApp</span>
+                                                <button
+                                                    onClick={() => copiarTexto(copyGerado.whatsapp)}
+                                                    className="text-[10px] text-green-400 hover:text-green-300"
+                                                >
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <p className="text-sm text-gray-300">{copyGerado.whatsapp}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex gap-2">
+                                        <button
+                                            onClick={() => gerarCopy(veiculoSelecionado)}
+                                            className="flex-1 py-2 bg-gradient-to-r from-neon-purple/20 to-neon-pink/20 text-neon-purple border border-neon-purple/30 rounded-lg text-sm hover:bg-neon-purple/30 transition-all"
+                                        >
+                                            🔄 Gerar Novo Copy
+                                        </button>
+                                        <button
+                                            onClick={() => { setCopyGerado(null); setVeiculoSelecionado(null); }}
+                                            className="px-4 py-2 bg-dark-700 text-gray-400 rounded-lg text-sm hover:text-white transition-all"
+                                        >
+                                            Fechar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // Pagina de Insights
         const InsightsPage = () => (
             <div className="space-y-6">
@@ -1700,6 +2211,7 @@
                     case 'busca': return <BuscaPage onAnalisar={handleAnalisar} />;
                     case 'recomendacao': return <RecomendacaoPage veiculoInicial={veiculoParaAnalise} />;
                     case 'estoque-inteligente': return <EstoqueInteligentePage />;
+                    case 'radar': return <RadarOportunidadesPage />;
                     case 'insights': return <InsightsPage />;
                     default: return <BuscaPage onAnalisar={handleAnalisar} />;
                 }
